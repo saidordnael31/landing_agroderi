@@ -9,10 +9,23 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel"
-import { Gift, Languages, ShieldOff, Coins, Flame, MessageSquare, BookOpen, Building, Users } from "lucide-react"
+import {
+  Gift,
+  Languages,
+  ShieldOff,
+  Coins,
+  Flame,
+  MessageSquare,
+  BookOpen,
+  Building,
+  Users,
+  ShieldCheck,
+  GitBranch,
+} from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { Share2, VoteIcon } from "lucide-react" // Adicione VoteIcon ao import
 
 const translations = {
   pt: {
@@ -42,8 +55,6 @@ const translations = {
     downsellTitle: "Acompanhe de Perto",
     downsellText: "Entre no nosso grupo exclusivo do WhatsApp.",
     downsellCTA: "Entrar no Grupo",
-    crosssellTitle: "Venda Conosco",
-    crosssellText: "Ganhe até 40% de comissão como afiliado.",
     languageName: "Português",
     videoTitle: "Entenda o Projeto em 1 Minuto",
     credibilityTitle: "Nossa Credibilidade",
@@ -121,11 +132,315 @@ const translations = {
       distrustful: "Building Trust",
     },
   },
-  es: { languageName: "Español" },
-  fr: { languageName: "Français" },
-  de: { languageName: "Deutsch" },
-  ru: { languageName: "Русский" },
-  zh: { languageName: "中文" },
+  es: {
+    welcome: "¡Tu viaje de valor comienza ahora!",
+    subWelcome:
+      "Cada paso aquí te genera recompensas en tokens AGD. En 3 meses, puedes retirar o reinvertir para ver crecer tu patrimonio.",
+    namePrompt: "¿Cuál es tu nombre?",
+    emailPrompt: "{name}, ¿cuál es tu mejor correo electrónico?",
+    profilePrompt: "Tu nivel de experiencia con cripto:",
+    profileOptions: {
+      novice: "Principiante",
+      intermediate: "Intermedio",
+      advanced: "Avanzado",
+      distrustful: "No confío / No quiero volver a ver esto",
+    },
+    continue: "Continuar",
+    finalTitle: "¡Felicitaciones, {name}!",
+    finalSubtitle: "¡Has acumulado {tokens} tokens AGD!",
+    finalValue: "Valor equivalente: ${value}",
+    affiliateCTA: "Sé Afiliado",
+    rewardUnlocked: "¡Recompensa desbloqueada!",
+    buyNow: "Comprar AGD",
+    emailReward: "Enviamos las instrucciones a {email}",
+    upsellTitle: "Potencia Tus Ganancias",
+    upsellText: "Adquiere nuestro curso Web3 y gana +100 tokens AGD.",
+    upsellCTA: "Quiero el Bono",
+    downsellTitle: "Sigue de Cerca",
+    downsellText: "Únete a nuestro grupo exclusivo de WhatsApp.",
+    downsellCTA: "Unirse al Grupo",
+    languageName: "Español",
+    videoTitle: "Entiende el Proyecto en 1 Minuto",
+    credibilityTitle: "Nuestra Credibilidad",
+    credibilityLinks: {
+      whitepaper: "Whitepaper y Tokenomics",
+      akintec: "Conoce Akintec",
+      agroderi: "Conoce Agroderi",
+      investors: "Inversores: Google y Nubank",
+    },
+    contactTitle: "Habla con un Especialista",
+    contactText: "Resuelve tus dudas o programa una reunión.",
+    contactCTA: "Chatear en WhatsApp",
+    tokensEarned: "Tokens Ganados",
+    distrustfulTitle: "Agradecemos tus comentarios.",
+    distrustfulText:
+      "Respetamos tu decisión. Si cambias de opinión, nuestro whitepaper está disponible para consulta. La transparencia es uno de nuestros mayores valores.",
+    distrustfulCTA: "Ver Whitepaper",
+    carouselTitles: {
+      novice: "Comienza con Seguridad",
+      intermediate: "Acelera tus Ganancias",
+      advanced: "Herramientas para Expertos",
+      distrustful: "Construyendo Confianza",
+    },
+  },
+  fr: {
+    languageName: "Français",
+    welcome: "Votre parcours de valeur commence maintenant !",
+    subWelcome:
+      "Chaque étape ici vous rapporte des récompenses en jetons AGD. Dans 3 mois, vous pourrez retirer ou réinvestir pour voir votre patrimoine grandir.",
+    namePrompt: "Quel est votre nom ?",
+    emailPrompt: "{name}, quelle est votre meilleure adresse e-mail ?",
+    profilePrompt: "Votre niveau d'expérience en crypto :",
+    profileOptions: { novice: "Débutant", intermediate: "Intermédiaire", advanced: "Avancé", distrustful: "Méfiant" },
+    continue: "Continuer",
+    finalTitle: "Félicitations, {name} !",
+    finalSubtitle: "Vous avez gagné {tokens} jetons AGD !",
+    finalValue: "Valeur équivalente : ${value}",
+    affiliateCTA: "Devenir affilié",
+    rewardUnlocked: "Récompense débloquée !",
+    buyNow: "Acheter AGD",
+    emailReward: "Nous avons envoyé les instructions à {email}",
+    upsellTitle: "Augmentez vos gains",
+    upsellText: "Achetez notre cours Web3 et obtenez +100 jetons AGD.",
+    upsellCTA: "Obtenir le bonus",
+    downsellTitle: "Suivez de près",
+    downsellText: "Rejoignez notre groupe WhatsApp exclusif.",
+    downsellCTA: "Rejoindre le groupe",
+    crosssellTitle: "Vendez avec nous",
+    crosssellText: "Gagnez jusqu'à 40% de commission en tant qu'affilié.",
+    videoTitle: "Comprendre le projet en 1 minute",
+    credibilityTitle: "Nos références",
+    credibilityLinks: {
+      whitepaper: "Livre blanc & Tokenomics",
+      akintec: "Découvrir Akintec",
+      agroderi: "Découvrir Agroderi",
+      investors: "Investisseurs : Google & Nubank",
+    },
+    contactTitle: "Parler à un spécialiste",
+    contactText: "Posez des questions ou planifiez une réunion.",
+    contactCTA: "Discuter sur WhatsApp",
+    tokensEarned: "Jetons gagnés",
+    distrustfulTitle: "Merci pour vos commentaires.",
+    distrustfulText:
+      "Nous respectons votre décision. Si vous changez d'avis, notre livre blanc est disponible pour consultation. La transparence est l'une de nos valeurs fondamentales.",
+    distrustfulCTA: "Voir le livre blanc",
+    carouselTitles: {
+      novice: "Commencez en toute sécurité",
+      intermediate: "Accélérez vos gains",
+      advanced: "Outils pour experts",
+      distrustful: "Bâtir la confiance",
+    },
+  },
+  de: {
+    languageName: "Deutsch",
+    welcome: "Ihre Wert-Reise beginnt jetzt!",
+    subWelcome:
+      "Jeder Schritt hier bringt Ihnen Belohnungen in AGD-Token. In 3 Monaten können Sie abheben oder reinvestieren, um Ihr Vermögen wachsen zu sehen.",
+    namePrompt: "Wie ist Ihr Name?",
+    emailPrompt: "{name}, was ist Ihre beste E-Mail-Adresse?",
+    profilePrompt: "Ihr Erfahrungslevel mit Krypto:",
+    profileOptions: {
+      novice: "Anfänger",
+      intermediate: "Fortgeschritten",
+      advanced: "Experte",
+      distrustful: "Misstrauisch",
+    },
+    continue: "Weiter",
+    finalTitle: "Herzlichen Glückwunsch, {name}!",
+    finalSubtitle: "Sie haben {tokens} AGD-Token verdient!",
+    finalValue: "Gegenwert: ${value}",
+    affiliateCTA: "Partner werden",
+    rewardUnlocked: "Belohnung freigeschaltet!",
+    buyNow: "AGD kaufen",
+    emailReward: "Wir haben die Anweisungen an {email} gesendet",
+    upsellTitle: "Steigern Sie Ihre Einnahmen",
+    upsellText: "Kaufen Sie unseren Web3-Kurs und erhalten Sie +100 AGD-Token.",
+    upsellCTA: "Bonus erhalten",
+    downsellTitle: "Bleiben Sie auf dem Laufenden",
+    downsellText: "Treten Sie unserer exklusiven WhatsApp-Gruppe bei.",
+    downsellCTA: "Gruppe beitreten",
+    crosssellTitle: "Verkaufen Sie mit uns",
+    crosssellText: "Verdienen Sie bis zu 40% Provision als Partner.",
+    videoTitle: "Das Projekt in 1 Minute verstehen",
+    credibilityTitle: "Unsere Referenzen",
+    credibilityLinks: {
+      whitepaper: "Whitepaper & Tokenomics",
+      akintec: "Lernen Sie Akintec kennen",
+      agroderi: "Lernen Sie Agroderi kennen",
+      investors: "Investoren: Google & Nubank",
+    },
+    contactTitle: "Sprechen Sie mit einem Spezialisten",
+    contactText: "Stellen Sie Fragen oder vereinbaren Sie ein Treffen.",
+    contactCTA: "Auf WhatsApp chatten",
+    tokensEarned: "Verdiente Token",
+    distrustfulTitle: "Vielen Dank für Ihr Feedback.",
+    distrustfulText:
+      "Wir respektieren Ihre Entscheidung. Wenn Sie Ihre Meinung ändern, steht unser Whitepaper zur Verfügung. Transparenz ist einer unserer Grundwerte.",
+    distrustfulCTA: "Whitepaper ansehen",
+    carouselTitles: {
+      novice: "Sicher starten",
+      intermediate: "Beschleunigen Sie Ihre Einnahmen",
+      advanced: "Werkzeuge für Experten",
+      distrustful: "Vertrauen aufbauen",
+    },
+  },
+  ru: {
+    languageName: "Русский",
+    welcome: "Ваше путешествие к ценности начинается сейчас!",
+    subWelcome:
+      "Каждый шаг здесь приносит вам вознаграждения в токенах AGD. Через 3 месяца вы сможете вывести средства или реинвестировать, чтобы наблюдать за ростом вашего состояния.",
+    namePrompt: "Как вас зовут?",
+    emailPrompt: "{name}, какой ваш лучший адрес электронной почты?",
+    profilePrompt: "Ваш уровень опыта в крипто:",
+    profileOptions: {
+      novice: "Новичок",
+      intermediate: "Средний",
+      advanced: "Продвинутый",
+      distrustful: "Недоверчивый",
+    },
+    continue: "Продолжить",
+    finalTitle: "Поздравляем, {name}!",
+    finalSubtitle: "Вы заработали {tokens} токенов AGD!",
+    finalValue: "Эквивалентная стоимость: ${value}",
+    affiliateCTA: "Стать партнером",
+    rewardUnlocked: "Награда разблокирована!",
+    buyNow: "Купить AGD",
+    emailReward: "Мы отправили инструкции на {email}",
+    upsellTitle: "Увеличьте свой доход",
+    upsellText: "Купите наш курс по Web3 и получите +100 токенов AGD.",
+    upsellCTA: "Получить бонус",
+    downsellTitle: "Следите внимательно",
+    downsellText: "Присоединяйтесь к нашей эксклюзивной группе в WhatsApp.",
+    downsellCTA: "Присоединиться к группе",
+    crosssellTitle: "Продавайте с нами",
+    crosssellText: "Зарабатывайте до 40% комиссии в качестве партнера.",
+    videoTitle: "Понять проект за 1 минуту",
+    credibilityTitle: "Наше доверие",
+    credibilityLinks: {
+      whitepaper: "Whitepaper и Токеномика",
+      akintec: "Знакомьтесь, Akintec",
+      agroderi: "Знакомьтесь, Agroderi",
+      investors: "Инвесторы: Google и Nubank",
+    },
+    contactTitle: "Поговорите со специалистом",
+    contactText: "Задайте вопросы или назначьте встречу.",
+    contactCTA: "Чат в WhatsApp",
+    tokensEarned: "Заработанные токены",
+    distrustfulTitle: "Спасибо за ваш отзыв.",
+    distrustfulText:
+      "Мы уважаем ваше решение. Если вы передумаете, наш whitepaper доступен для ознакомления. Прозрачность — одна из наших основных ценностей.",
+    distrustfulCTA: "Посмотреть Whitepaper",
+    carouselTitles: {
+      novice: "Начните безопасно",
+      intermediate: "Ускорьте свой заработок",
+      advanced: "Инструменты для экспертов",
+      distrustful: "Построение доверия",
+    },
+  },
+  zh: {
+    languageName: "中文",
+    welcome: "您的价值之旅现在开始！",
+    subWelcome: "在这里的每一步都会为您赢得AGD代币奖励。3个月后，您可以提取或再投资，以观察您的资产增长。",
+    namePrompt: "您叫什么名字？",
+    emailPrompt: "{name}，您最好的电子邮件是什么？",
+    profilePrompt: "您的加密货币经验水平：",
+    profileOptions: { novice: "初学者", intermediate: "中级", advanced: "高级", distrustful: "不信任" },
+    continue: "继续",
+    finalTitle: "恭喜，{name}！",
+    finalSubtitle: "您已经获得了 {tokens} 个AGD代币！",
+    finalValue: "等值价值：${value}",
+    affiliateCTA: "成为会员",
+    rewardUnlocked: "奖励已解锁！",
+    buyNow: "购买AGD",
+    emailReward: "我们已将说明发送至 {email}",
+    upsellTitle: "增加您的收入",
+    upsellText: "购买我们的Web3课程，即可获得+100个AGD代币。",
+    upsellCTA: "获取奖励",
+    downsellTitle: "密切关注",
+    downsellText: "加入我们的专属WhatsApp群组。",
+    downsellCTA: "加入群组",
+    crosssellTitle: "与我们一起销售",
+    crosssellText: "作为会员，赚取高达40%的佣金。",
+    videoTitle: "1分钟了解项目",
+    credibilityTitle: "我们的信誉",
+    credibilityLinks: {
+      whitepaper: "白皮书和代币经济学",
+      akintec: "了解Akintec",
+      agroderi: "了解Agroderi",
+      investors: "投资者：谷歌和Nubank",
+    },
+    contactTitle: "与专家交谈",
+    contactText: "提出问题或安排会议。",
+    contactCTA: "在WhatsApp上聊天",
+    tokensEarned: "赚取的代币",
+    distrustfulTitle: "感谢您的反馈。",
+    distrustfulText: "我们尊重您的决定。如果您改变主意，我们的白皮书可供查阅。透明度是我们的核心价值观之一。",
+    distrustfulCTA: "查看白皮书",
+    carouselTitles: { novice: "安全入门", intermediate: "加速您的收益", advanced: "专家工具", distrustful: "建立信任" },
+  },
+}
+
+const banners = {
+  novice: [
+    {
+      icon: BookOpen,
+      title: "Guia do Iniciante",
+      description: "Aprenda os conceitos básicos de cripto e Web3 de forma segura.",
+      cta: "Começar a Aprender",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Segurança em Primeiro Lugar",
+      description: "Descubra como proteger seus ativos digitais contra fraudes.",
+      cta: "Ver Dicas de Segurança",
+    },
+    {
+      icon: Users,
+      title: "Comunidade de Apoio",
+      description: "Junte-se a outros iniciantes e tire suas dúvidas em nosso grupo.",
+      cta: "Entrar na Comunidade",
+    },
+  ],
+  intermediate: [
+    {
+      icon: Share2,
+      title: "Seja Afiliado",
+      description: "Indique novos usuários para a plataforma e ganhe até 40% de comissão.",
+      cta: "Quero ser Afiliado",
+    },
+    {
+      icon: VoteIcon,
+      title: "Seja Sócio",
+      description: "Participe da nossa DAO, vote em propostas e ajude a decidir o futuro do projeto.",
+      cta: "Entrar na DAO",
+    },
+    {
+      icon: Coins,
+      title: "Ganhe Mais Tokens",
+      description: "Complete tarefas na comunidade, participe de eventos e acumule mais AGD.",
+      cta: "Ver Tarefas",
+    },
+  ],
+  advanced: [
+    {
+      icon: Flame,
+      title: "Staking & Farming",
+      description: "Maximize seus rendimentos com nossos pools de liquidez e staking de AGD.",
+      cta: "Acessar Pools",
+    },
+    {
+      icon: GitBranch,
+      title: "Derivativos Descentralizados",
+      description: "Opere contratos futuros e opções de commodities agrícolas tokenizadas.",
+      cta: "Ir para o Mercado",
+    },
+    {
+      icon: Building,
+      title: "Tokenização de Ativos",
+      description: "Traga seus próprios ativos do agronegócio para o ecossistema Agroderi.",
+      cta: "Fale com um Especialista",
+    },
+  ],
 }
 
 type LanguageKey = keyof typeof translations
@@ -314,38 +629,33 @@ export function FunnelClient({ serverVideos }: { serverVideos: Record<string, st
 
           <Card>
             <CardHeader>
-              <CardTitle>{t.carouselTitles[profile as keyof typeof t.carouselTitles]}</CardTitle>
+              <CardTitle>
+                {t.carouselTitles[profile as keyof typeof t.carouselTitles] || t.carouselTitles.novice}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Carousel>
                 <CarouselContent>
-                  <CarouselItem className="md:basis-1/2 lg:basis-1/3">
-                    <div className="p-1">
-                      <Card>
-                        <CardContent className="flex aspect-video items-center justify-center p-6 bg-slate-200">
-                          <span className="text-2xl font-semibold">Banner 1</span>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </CarouselItem>
-                  <CarouselItem className="md:basis-1/2 lg:basis-1/3">
-                    <div className="p-1">
-                      <Card>
-                        <CardContent className="flex aspect-video items-center justify-center p-6 bg-slate-200">
-                          <span className="text-2xl font-semibold">Banner 2</span>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </CarouselItem>
-                  <CarouselItem className="md:basis-1/2 lg:basis-1/3">
-                    <div className="p-1">
-                      <Card>
-                        <CardContent className="flex aspect-video items-center justify-center p-6 bg-slate-200">
-                          <span className="text-2xl font-semibold">Banner 3</span>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </CarouselItem>
+                  {(banners[profile as keyof typeof banners] || banners.novice).map((banner, index) => (
+                    <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
+                      <div className="p-1 h-full">
+                        <Card className="flex flex-col h-full text-left">
+                          <CardHeader className="flex-row items-center gap-3 pb-2">
+                            <banner.icon className="w-6 h-6 text-green-600" />
+                            <CardTitle className="text-base">{banner.title}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex-grow">
+                            <p className="text-sm text-muted-foreground">{banner.description}</p>
+                          </CardContent>
+                          <CardFooter>
+                            <Button variant="outline" size="sm" className="w-full bg-transparent">
+                              {banner.cta}
+                            </Button>
+                          </CardFooter>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))}
                 </CarouselContent>
               </Carousel>
             </CardContent>

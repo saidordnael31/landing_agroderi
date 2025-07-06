@@ -1,17 +1,16 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-
 import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type ColumnFiltersState,
   getFilteredRowModel,
   getPaginationRowModel,
+  type ColumnFiltersState,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 
@@ -25,7 +24,7 @@ interface Lead {
   created_at: string
 }
 
-const columns: ColumnDef<Lead>[] = [
+export const columns: ColumnDef<Lead>[] = [
   {
     accessorKey: "name",
     header: "Nome",
@@ -37,10 +36,11 @@ const columns: ColumnDef<Lead>[] = [
   {
     accessorKey: "profile",
     header: "Perfil",
-  },
-  {
-    accessorKey: "language",
-    header: "Idioma",
+    cell: ({ row }) => {
+      const profile = row.getValue("profile") as string
+      // Capitalize first letter
+      return profile.charAt(0).toUpperCase() + profile.slice(1)
+    },
   },
   {
     accessorKey: "earned_tokens",
@@ -48,7 +48,18 @@ const columns: ColumnDef<Lead>[] = [
   },
   {
     accessorKey: "created_at",
-    header: "Data de Criação",
+    header: "Data de Inscrição",
+    cell: ({ row }) => {
+      const date = new Date(row.getValue("created_at"))
+      const formatted = date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      return <div className="text-right font-medium">{formatted}</div>
+    },
   },
 ]
 
@@ -62,38 +73,33 @@ export function LeadsTable({ leads }: LeadsTableProps) {
   const table = useReactTable({
     data: leads,
     columns,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    onColumnFiltersChange: setColumnFilters,
     state: {
       columnFilters,
     },
   })
 
   return (
-    <div>
-      <Input
-        placeholder="Filtrar leads..."
-        value={(table.getState().columnFilters[0]?.value as string) ?? ""}
-        onChange={(event) =>
-          table.setColumnFilters([
-            {
-              id: "name",
-              value: event.target.value,
-            },
-          ])
-        }
-        className="max-w-sm mb-4"
-      />
-      <div className="rounded-md border">
+    <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+      <div className="flex items-center py-4">
+        <Input
+          placeholder="Filtrar por e-mail..."
+          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
+          onChange={(event) => table.getColumn("email")?.setFilterValue(event.target.value)}
+          className="max-w-sm bg-gray-700 border-gray-600"
+        />
+      </div>
+      <div className="rounded-md border border-gray-700">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="border-gray-700 hover:bg-gray-700/50">
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="text-white">
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   )
@@ -104,7 +110,11 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="border-gray-700 hover:bg-gray-700/50"
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                   ))}
@@ -121,10 +131,22 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         </Table>
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
-        <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+          className="bg-gray-700 border-gray-600"
+        >
           Anterior
         </Button>
-        <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+          className="bg-gray-700 border-gray-600"
+        >
           Próximo
         </Button>
       </div>
