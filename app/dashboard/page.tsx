@@ -5,6 +5,7 @@ import { VideoUploadForm } from "./video-upload-form"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LeadsTable } from "./leads-table"
+import { VideosTable } from "./videos-table"
 
 export const dynamic = "force-dynamic"
 
@@ -58,42 +59,24 @@ export default async function DashboardPage() {
 
         <Tabs defaultValue="videos" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-800/60 border-gray-700">
-            <TabsTrigger value="videos">Vídeos</TabsTrigger>
+            <TabsTrigger value="videos">Vídeos ({videos?.length || 0})</TabsTrigger>
             <TabsTrigger value="leads">Inscritos ({leads?.length || 0})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="videos" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
               <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
                 <h2 className="text-xl font-semibold mb-4">Adicionar ou Atualizar Vídeo</h2>
+                <p className="text-sm text-gray-400 mb-4">
+                  Para atualizar um vídeo, basta enviar um novo para a mesma etapa e idioma. O vídeo antigo será
+                  substituído.
+                </p>
                 <VideoUploadForm />
               </div>
 
               <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
                 <h2 className="text-xl font-semibold mb-4">Vídeos Atuais</h2>
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                  {videos && videos.length > 0 ? (
-                    videos.map((video) => (
-                      <div key={video.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-md">
-                        <div>
-                          <p className="font-semibold">
-                            Etapa {video.step} - Idioma: {video.language.toUpperCase()}
-                          </p>
-                          <a
-                            href={video.video_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-green-400 hover:underline break-all"
-                          >
-                            {video.video_url}
-                          </a>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">Nenhum vídeo cadastrado.</p>
-                  )}
-                </div>
+                <VideosTable videos={videos || []} />
               </div>
             </div>
           </TabsContent>

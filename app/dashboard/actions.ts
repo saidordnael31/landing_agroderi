@@ -1,6 +1,6 @@
 "use server"
 
-import { put } from "@vercel/blob"
+import { put, del } from "@vercel/blob"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
@@ -70,5 +70,47 @@ export async function uploadVideo(prevState: any, formData: FormData) {
   } catch (error: any) {
     console.error("Save Video Error:", error)
     return { message: `Erro ao salvar vídeo: ${error.message}`, error: true, timestamp: Date.now() }
+  }
+}
+
+export async function deleteVideo(videoId: string) {
+  const supabase = createServerComponentClient({ cookies })
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    return { message: "Não autorizado.", error: true }
+  }
+
+  try {
+    // First, get the video URL to check if it's a Vercel Blob
+    const { data: video, error: fetchError } = await supabase
+      .from("funnel_videos")
+      .select("video_url")
+      .eq("id", videoId)
+      .single()
+
+    if (fetchError || !video) {
+      throw new Error("Vídeo não encontrado.")
+    }
+
+    // Delete from Supabase
+    const { error: deleteError } = await supabase.from("funnel_videos").delete().eq("id", videoId)
+
+    if (deleteError) {
+      throw deleteError
+    }
+
+    // If it's a Vercel Blob URL, delete it from Blob storage
+    if (video.video_url.includes("blob.vercel-storage.com")) {
+      await del(video.video_url)
+    }
+
+    revalidatePath("/dashboard")
+    return { message: "Vídeo excluído com sucesso!", error: false }
+  } catch (error: any) {
+    console.error("Delete Video Error:", error)
+    return { message: `Erro ao excluir vídeo: ${error.message}`, error: true }
   }
 }
