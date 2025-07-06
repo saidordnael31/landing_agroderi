@@ -37,8 +37,7 @@ export const columns: ColumnDef<Lead>[] = [
     accessorKey: "profile",
     header: "Perfil",
     cell: ({ row }) => {
-      const profile = row.getValue("profile") as string
-      // Capitalize first letter
+      const profile = (row.getValue("profile") as string) || ""
       return profile.charAt(0).toUpperCase() + profile.slice(1)
     },
   },
@@ -50,15 +49,21 @@ export const columns: ColumnDef<Lead>[] = [
     accessorKey: "created_at",
     header: "Data de Inscrição",
     cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"))
-      const formatted = date.toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-      return <div className="text-right font-medium">{formatted}</div>
+      const dateValue = row.getValue("created_at")
+      if (!dateValue) return "N/A"
+      try {
+        const date = new Date(dateValue as string)
+        const formatted = date.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+        return <div className="font-medium">{formatted}</div>
+      } catch (e) {
+        return "Data inválida"
+      }
     },
   },
 ]
@@ -123,7 +128,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Nenhum resultado.
+                  Nenhum inscrito encontrado.
                 </TableCell>
               </TableRow>
             )}
