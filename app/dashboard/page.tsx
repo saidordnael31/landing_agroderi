@@ -1,22 +1,20 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { DashboardClient } from "./dashboard-client"
 
 export const dynamic = "force-dynamic"
 
-export default async function DashboardPage() {
+export default async function DashboardIndexPage() {
   const supabase = createServerComponentClient({ cookies })
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
+  // Se o usuário não estiver autenticado, redireciona para o login
   if (!session) {
     redirect("/login")
   }
 
-  const { data: videos } = await supabase.from("funnel_videos").select("*").order("step").order("language")
-  const { data: leads } = await supabase.from("leads").select("*").order("created_at", { ascending: false })
-
-  return <DashboardClient initialVideos={videos || []} initialLeads={leads || []} userEmail={session.user.email} />
+  // Usuário autenticado → envia para a seção padrão (Vídeos)
+  redirect("/dashboard/videos")
 }

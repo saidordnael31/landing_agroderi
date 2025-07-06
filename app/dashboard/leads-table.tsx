@@ -50,9 +50,14 @@ export const columns: ColumnDef<Lead>[] = [
     header: "Data de Inscrição",
     cell: ({ row }) => {
       const dateValue = row.getValue("created_at")
-      if (!dateValue) return "N/A"
+      if (typeof dateValue !== "string" || !dateValue) {
+        return "N/A"
+      }
       try {
-        const date = new Date(dateValue as string)
+        const date = new Date(dateValue)
+        if (isNaN(date.getTime())) {
+          return "Data inválida"
+        }
         const formatted = date.toLocaleDateString("pt-BR", {
           day: "2-digit",
           month: "2-digit",
@@ -62,7 +67,7 @@ export const columns: ColumnDef<Lead>[] = [
         })
         return <div className="font-medium">{formatted}</div>
       } catch (e) {
-        return "Data inválida"
+        return "Erro na data"
       }
     },
   },
