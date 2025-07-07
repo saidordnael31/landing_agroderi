@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase-client"
 import { INVESTMENT_PLANS, calculateInvestmentBonus } from "@/lib/business-rules"
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, planId, amount, affiliateId, paymentMethod } = await request.json()
+    const { planId, amount, userEmail, userName, userPhone, affiliateCode, paymentMethod } = await request.json()
 
     // Validar plano
     const plan = INVESTMENT_PLANS.find((p) => p.id === planId)
@@ -14,7 +14,58 @@ export async function POST(request: NextRequest) {
 
     // Validar valor
     if (amount < plan.minValue || (plan.maxValue && amount > plan.maxValue)) {
-      return NextResponse.json({ error: "Valor fora dos limites do plano" }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: `Valor deve estar entre R$ ${plan.minValue.toLocaleString()} e R$ ${plan.maxValue?.toLocaleString() || "ilimitado"}`,
+        },
+        { status: 400 },
+      )
+    }
+
+    // Buscar ou criar usuário
+    let user
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", userEmail.toLowerCase())
+      .single()
+
+    if (existingUser) {
+      user = existingUser
+    } else {
+      // Criar novo usuário
+      const { data: newUser, error: userError } = await supabase
+        .from("users")
+        .insert({
+          email: userEmail.toLowerCase(),
+          name: userName,
+          phone: userPhone,
+          role: "buyer",
+          status: "active",
+        })
+        .select()
+        .single()
+
+      if (userError) {
+        console.error("Erro ao criar usuário:", userError)
+        return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 400 })
+      }
+      user = newUser
+    }
+
+    // Buscar afiliado se código fornecido
+    let affiliateId = null
+    if (affiliateCode) {
+      const { data: affiliate } = await supabase
+        .from("affiliates")
+        .select("id, status")
+        .eq("affiliate_code", affiliateCode.toUpperCase())
+        .eq("status", "active")
+        .single()
+
+      if (affiliate) {
+        affiliateId = affiliate.id
+      }
     }
 
     // Calcular bônus
@@ -25,43 +76,39 @@ export async function POST(request: NextRequest) {
     unlockDate.setDate(unlockDate.getDate() + plan.lockPeriod)
 
     // Criar investimento
-    const { data: investment, error } = await supabase
+    const { data: investment, error: investmentError } = await supabase
       .from("investments")
       .insert({
-        user_id: userId,
+        user_id: user.id,
         plan_id: planId,
         amount,
         bonus: bonusData.bonus,
         affiliate_bonus: bonusData.affiliateBonus,
         affiliate_id: affiliateId,
         unlock_date: unlockDate.toISOString(),
-        payment_method: paymentMethod,
+        payment_method: paymentMethod || "pix",
         transaction_id: `TXN_${Date.now()}`,
+        status: "pending",
       })
       .select()
       .single()
 
-    if (error) {
-      return NextResponse.json({ error: "Erro ao criar investimento: " + error.message }, { status: 400 })
-    }
-
-    // Se há afiliado, criar comissão
-    if (affiliateId) {
-      const commissionAmount = (amount * 7) / 100 // 7% de comissão
-
-      await supabase.from("commissions").insert({
-        affiliate_id: affiliateId,
-        investment_id: investment.id,
-        amount: commissionAmount,
-        percentage: 7,
-        status: "pending",
-      })
+    if (investmentError) {
+      console.error("Erro ao criar investimento:", investmentError)
+      return NextResponse.json({ error: "Erro ao criar investimento" }, { status: 400 })
     }
 
     return NextResponse.json({
       success: true,
-      investment,
+      investment: {
+        id: investment.id,
+        amount: investment.amount,
+        bonus: investment.bonus,
+        plan: plan.name,
+        unlockDate: investment.unlock_date,
+      },
       redirectUrl: "https://www.agroderi.in",
+      message: "Investimento criado com sucesso!",
     })
   } catch (error) {
     console.error("Erro ao criar investimento:", error)

@@ -1,25 +1,59 @@
-/**
- * util para disparar eventos no Matomo/Piwik.
- *
- * Exemplo de uso:
- *   import { trackEvent } from "@/utils/matomo"
- *   trackEvent("Ofertas", "Clique", "Plano Premium", 1)
- *
- * O código verifica se está no browser e se o array global `_paq`
- * (usado pelo Matomo) já existe; se não, cria-o antes de enviar o evento.
- */
-export function trackEvent(category: string, action: string, name?: string, value?: number): void {
-  // Evita executar no lado do servidor
-  if (typeof window === "undefined") return
+// Utilitários para rastreamento Matomo/Google Analytics
+declare global {
+  interface Window {
+    gtag?: (...args: any[]) => void
+    _paq?: any[]
+  }
+}
 
-  // Garante que _paq exista
-  const _paq = (window as unknown as { _paq: any[] })._paq || []
-  ;(window as unknown as { _paq: any[] })._paq = _paq
+export function trackEvent(action: string, category = "general", label?: string, value?: number) {
+  // Google Analytics 4
+  if (typeof window !== "undefined" && window.gtag) {
+    window.gtag("event", action, {
+      event_category: category,
+      event_label: label,
+      value: value,
+    })
+  }
 
-  // Monta os argumentos conforme a API do Matomo
-  const args: (string | number)[] = ["trackEvent", category, action]
-  if (name !== undefined) args.push(name)
-  if (value !== undefined) args.push(value)
+  // Matomo
+  if (typeof window !== "undefined" && window._paq) {
+    window._paq.push(["trackEvent", category, action, label, value])
+  }
 
-  _paq.push(args)
+  // Console log para debug
+  console.log("Event tracked:", { action, category, label, value })
+}
+
+export function trackPageView(url?: string) {
+  const page = url || window.location.pathname
+
+  // Google Analytics 4
+  if (typeof window !== "undefined" && window.gtag) {
+    window.gtag("config", process.env.NEXT_PUBLIC_GA_ID, {
+      page_path: page,
+    })
+  }
+
+  // Matomo
+  if (typeof window !== "undefined" && window._paq) {
+    window._paq.push(["setCustomUrl", page])
+    window._paq.push(["trackPageView"])
+  }
+}
+
+export function trackConversion(value: number, currency = "BRL") {
+  // Google Analytics 4 - Purchase Event
+  if (typeof window !== "undefined" && window.gtag) {
+    window.gtag("event", "purchase", {
+      transaction_id: `TXN_${Date.now()}`,
+      value: value,
+      currency: currency,
+    })
+  }
+
+  // Matomo - Goal Conversion
+  if (typeof window !== "undefined" && window._paq) {
+    window._paq.push(["trackGoal", 1, value])
+  }
 }
