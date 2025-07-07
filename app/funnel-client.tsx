@@ -25,7 +25,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { Share2, VoteIcon } from "lucide-react" // Adicione VoteIcon ao import
+import { Share2, VoteIcon } from "lucide-react"
 
 const translations = {
   pt: {
@@ -451,15 +451,63 @@ const stepVariants = {
   exit: { opacity: 0, y: -20, transition: { duration: 0.3 } },
 }
 
+// Função para converter URL do Google Drive para formato embedável
+const convertGoogleDriveUrl = (url: string): string => {
+  // Se já é uma URL de preview, retorna como está
+  if (url.includes("/preview")) {
+    return url
+  }
+
+  // Extrai o ID do arquivo de diferentes formatos de URL do Google Drive
+  let fileId = ""
+
+  // Formato: https://drive.google.com/file/d/FILE_ID/view
+  if (url.includes("/file/d/")) {
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+    if (match) fileId = match[1]
+  }
+
+  // Formato: https://drive.google.com/open?id=FILE_ID
+  if (url.includes("open?id=")) {
+    const match = url.match(/id=([a-zA-Z0-9_-]+)/)
+    if (match) fileId = match[1]
+  }
+
+  // Formato: https://drive.google.com/uc?export=download&id=FILE_ID
+  if (url.includes("uc?") && url.includes("id=")) {
+    const match = url.match(/id=([a-zA-Z0-9_-]+)/)
+    if (match) fileId = match[1]
+  }
+
+  // Se encontrou o ID, retorna a URL de preview
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/preview`
+  }
+
+  // Se não conseguiu converter, retorna a URL original
+  return url
+}
+
 const VideoPlayer = ({ src, title }: { src?: string; title: string }) => (
   <div className="mt-4">
     <h3 className="text-sm font-medium text-center mb-2">{title}</h3>
     <div className="aspect-video bg-slate-200 dark:bg-slate-800 rounded-lg flex items-center justify-center overflow-hidden">
       {src ? (
-        <video key={src} controls autoPlay muted loop playsInline className="w-full h-full object-cover">
-          <source src={src} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
+        src.includes("drive.google.com") ? (
+          <iframe
+            key={src}
+            src={convertGoogleDriveUrl(src)}
+            className="w-full h-full"
+            allow="autoplay"
+            allowFullScreen
+            title={title}
+          />
+        ) : (
+          <video key={src} controls autoPlay muted loop playsInline className="w-full h-full object-cover">
+            <source src={src} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        )
       ) : (
         <p className="text-slate-500 text-sm">Vídeo (16:9)</p>
       )}

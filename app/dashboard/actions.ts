@@ -74,16 +74,16 @@ export async function uploadVideo(prevState: any, formData: FormData) {
 }
 
 export async function deleteVideo(videoId: string) {
-  const supabase = createServerComponentClient({ cookies })
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    return { message: "Não autorizado.", error: true }
-  }
-
   try {
+    const supabase = createServerComponentClient({ cookies })
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      return { message: "Não autorizado.", error: true }
+    }
+
     // First, get the video URL to check if it's a Vercel Blob
     const { data: video, error: fetchError } = await supabase
       .from("funnel_videos")
@@ -91,26 +91,38 @@ export async function deleteVideo(videoId: string) {
       .eq("id", videoId)
       .single()
 
-    if (fetchError || !video) {
-      throw new Error("Vídeo não encontrado.")
+    if (fetchError) {
+      console.error("Fetch error:", fetchError)
+      return { message: "Vídeo não encontrado.", error: true }
     }
 
-    // Delete from Supabase
+    if (!video) {
+      return { message: "Vídeo não encontrado.", error: true }
+    }
+
+    // Delete from Supabase first
     const { error: deleteError } = await supabase.from("funnel_videos").delete().eq("id", videoId)
 
     if (deleteError) {
-      throw deleteError
+      console.error("Delete error:", deleteError)
+      return { message: `Erro ao excluir vídeo: ${deleteError.message}`, error: true }
     }
 
-    // If it's a Vercel Blob URL, delete it from Blob storage
-    if (video.video_url.includes("blob.vercel-storage.com")) {
-      await del(video.video_url)
+    // If it's a Vercel Blob URL, try to delete it from Blob storage
+    if (video.video_url && video.video_url.includes("blob.vercel-storage.com")) {
+      try {
+        await del(video.video_url)
+      } catch (blobError) {
+        console.warn("Warning: Could not delete blob file:", blobError)
+        // Don't fail the entire operation if blob deletion fails
+      }
     }
 
     revalidatePath("/dashboard")
+    revalidatePath("/dashboard/videos")
     return { message: "Vídeo excluído com sucesso!", error: false }
   } catch (error: any) {
     console.error("Delete Video Error:", error)
-    return { message: `Erro ao excluir vídeo: ${error.message}`, error: true }
+    return { message: `Erro inesperado: ${error.message}`, error: true }
   }
 }

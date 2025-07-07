@@ -1,6 +1,7 @@
 "use client"
 
-import { useFormState, useFormStatus } from "react-dom"
+import { useActionState } from "react"
+import { useFormStatus } from "react-dom"
 import { uploadVideo } from "./actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +27,7 @@ function SubmitButton() {
 }
 
 export function VideoUploadForm() {
-  const [state, formAction] = useFormState(uploadVideo, initialState)
+  const [state, formAction] = useActionState(uploadVideo, initialState)
   const { toast } = useToast()
   const formRef = useRef<HTMLFormElement>(null)
   const [sourceType, setSourceType] = useState("upload")
