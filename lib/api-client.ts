@@ -1,53 +1,38 @@
-// Cliente para fazer chamadas para as APIs do backend
-
-interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
-
+// Cliente para fazer chamadas para as APIs
 class ApiClient {
   private baseUrl: string
 
   constructor() {
-    this.baseUrl = typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_API_URL || ""
+    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || ""
   }
 
-  private getAuthToken(): string | null {
-    if (typeof window === "undefined") return null
-    return localStorage.getItem("auth_token")
-  }
-
-  private async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = this.getAuthToken()
-
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${this.baseUrl}/api${endpoint}`
     const config: RequestInit = {
       headers: {
         "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/api${endpoint}`, config)
+      const response = await fetch(url, config)
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`)
+        throw new Error(data.error || `HTTP error! status: ${response.status}`)
       }
 
       return data
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error)
+      console.error(`API Error (${endpoint}):`, error)
       throw error
     }
   }
 
   // Autenticação
-  async login(email: string, password: string): Promise<ApiResponse> {
+  async login(email: string, password: string) {
     return this.request("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
@@ -55,72 +40,119 @@ class ApiClient {
   }
 
   // Afiliados
-  async registerAffiliate(data: {
-    email: string
-    nome: string
-    telefone: string
-    cpf?: string
-  }): Promise<ApiResponse> {
+  async registerAffiliate(data: { name: string; email: string; phone: string; cpf?: string }) {
     return this.request("/affiliates/register", {
       method: "POST",
       body: JSON.stringify(data),
     })
   }
 
+  async getAffiliateStats(token: string) {
+    return this.request("/affiliates/stats", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  }
+
   // Investimentos
   async createInvestment(data: {
+    name: string
+    email: string
+    phone: string
+    cpf?: string
     planId: string
     amount: number
-    userEmail: string
-    userName: string
-    userPhone: string
     affiliateCode?: string
+    utmSource?: string
     paymentMethod?: string
-  }): Promise<ApiResponse> {
+  }) {
     return this.request("/investments/create", {
       method: "POST",
       body: JSON.stringify(data),
     })
   }
 
+  async getUserInvestments(token: string) {
+    return this.request("/investments/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  }
+
   // Missões
-  async submitMission(data: {
-    email: string
-    wallet: string
-    stepsCompleted: string[]
-  }): Promise<ApiResponse> {
+  async submitMissionStep(data: { email: string; walletAddress: string; step: string; proof?: string }) {
     return this.request("/missions/submit", {
       method: "POST",
       body: JSON.stringify(data),
     })
   }
 
-  // Dashboard Admin
-  async getAdminDashboard(): Promise<ApiResponse> {
-    return this.request("/admin/dashboard")
+  async getMissionStatus(email: string) {
+    return this.request(`/missions/status?email=${encodeURIComponent(email)}`)
+  }
+
+  // Admin
+  async getAdminDashboard(token: string) {
+    return this.request("/admin/dashboard", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
   }
 
   // Utilitários
-  saveAuthToken(token: string) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("auth_token", token)
-    }
-  }
-
-  removeAuthToken() {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_token")
-    }
-  }
-
-  isAuthenticated(): boolean {
-    return !!this.getAuthToken()
+  async trackEvent(eventName: string, eventData: any) {
+    return this.request("/analytics/track", {
+      method: "POST",
+      body: JSON.stringify({ event_name: eventName, event_data: eventData }),
+    })
   }
 }
 
+// Instância singleton
 export const apiClient = new ApiClient()
 
-// Hook para usar o cliente da API
+// Hooks para React (opcional)
 export function useApiClient() {
   return apiClient
+}
+
+// Tipos para TypeScript
+export interface LoginResponse {
+  success: boolean
+  user: {
+    id: string
+    email: string
+    name: string
+    role: string
+  }
+  token: string
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean
+  message?: string
+  data?: T
+  error?: string
+}
+
+export interface InvestmentData {
+  name: string
+  email: string
+  phone: string
+  cpf?: string
+  planId: string
+  amount: number
+  affiliateCode?: string
+  utmSource?: string
+  paymentMethod?: string
+}
+
+export interface MissionStep {
+  email: string
+  walletAddress: string
+  step: "instagram" | "youtube" | "telegram"
+  proof?: string
 }

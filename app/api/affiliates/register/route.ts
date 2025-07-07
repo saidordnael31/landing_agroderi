@@ -1,84 +1,104 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase-client"
+import { supabase, createUser, createAffiliate } from "@/lib/supabase-client"
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.json()
+    const { name, email, phone, cpf } = await request.json()
 
-    // Validar dados obrigatórios
-    if (!formData.email || !formData.nome || !formData.telefone) {
-      return NextResponse.json({ error: "Dados obrigatórios não fornecidos" }, { status: 400 })
+    // Validações básicas
+    if (!name || !email || !phone) {
+      return NextResponse.json({ error: "Nome, email e telefone são obrigatórios" }, { status: 400 })
     }
 
     // Verificar se email já existe
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", formData.email.toLowerCase())
-      .single()
+    const { data: existingUser } = await supabase.from("users").select("id").eq("email", email.toLowerCase()).single()
 
     if (existingUser) {
-      return NextResponse.json({ error: "Email já cadastrado" }, { status: 400 })
+      return NextResponse.json({ error: "Este email já está cadastrado" }, { status: 409 })
     }
 
     // Criar usuário
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .insert({
-        email: formData.email.toLowerCase(),
-        name: formData.nome,
-        phone: formData.telefone,
-        cpf: formData.cpf,
-        role: "affiliate",
-        status: "pending",
-      })
-      .select()
-      .single()
+    const user = await createUser({
+      name,
+      email: email.toLowerCase(),
+      phone,
+      cpf,
+      role: "affiliate",
+      status: "active",
+    })
 
-    if (userError) {
-      console.error("Erro ao criar usuário:", userError)
-      return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 400 })
+    if (!user) {
+      return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
     }
-
-    // Gerar código único do afiliado
-    const { data: codeResult, error: codeError } = await supabase.rpc("generate_affiliate_code")
-
-    if (codeError) {
-      console.error("Erro ao gerar código:", codeError)
-      return NextResponse.json({ error: "Erro ao gerar código de afiliado" }, { status: 400 })
-    }
-
-    const affiliateCode = codeResult
 
     // Criar afiliado
-    const { data: affiliate, error: affiliateError } = await supabase
-      .from("affiliates")
-      .insert({
-        user_id: user.id,
-        affiliate_code: affiliateCode,
-        tier: "standard",
-        status: "pending",
-      })
-      .select()
-      .single()
+    const affiliate = await createAffiliate(user.id, "standard")
 
-    if (affiliateError) {
-      console.error("Erro ao criar afiliado:", affiliateError)
-      return NextResponse.json({ error: "Erro ao criar afiliado" }, { status: 400 })
+    if (!affiliate) {
+      // Se falhou, deletar o usuário criado
+      await supabase.from("users").delete().eq("id", user.id)
+      return NextResponse.json({ error: "Erro ao criar afiliado" }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      affiliateCode,
-      message: "Afiliado cadastrado com sucesso! Aguarde aprovação.",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
+      message: "Afiliado cadastrado com sucesso!",
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+        },
+        affiliate: {
+          id: affiliate.id,
+          code: affiliate.affiliate_code,
+          tier: affiliate.tier,
+          status: affiliate.status,
+        },
       },
     })
   } catch (error) {
     console.error("Erro no cadastro de afiliado:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const code = searchParams.get("code")
+
+    if (!code) {
+      return NextResponse.json({ error: "Código do afiliado é obrigatório" }, { status: 400 })
+    }
+
+    const { data: affiliate, error } = await supabase
+      .from("affiliates")
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email,
+          phone,
+          status
+        )
+      `)
+      .eq("affiliate_code", code.toUpperCase())
+      .eq("status", "active")
+      .single()
+
+    if (error || !affiliate) {
+      return NextResponse.json({ error: "Afiliado não encontrado" }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: affiliate,
+    })
+  } catch (error) {
+    console.error("Erro ao buscar afiliado:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
