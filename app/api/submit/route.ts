@@ -11,9 +11,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nome e email são obrigatórios." }, { status: 400 })
   }
 
+  // Salva ou atualiza o lead pelo e-mail
   const { data, error } = await supabase
     .from("leads")
-    .insert([
+    .upsert(
       {
         name,
         email,
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
         language,
         earned_tokens: earnedTokens,
       },
-    ])
+      { onConflict: "email" }, // usa o campo único “email” como referência
+    )
     .select()
 
   if (error) {
@@ -29,6 +31,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  console.log("Salvo no Supabase com sucesso:", data)
-  return NextResponse.json({ success: true, data })
+  return NextResponse.json({
+    success: true,
+    data,
+    message: "Lead inserido ou atualizado com sucesso",
+  })
 }

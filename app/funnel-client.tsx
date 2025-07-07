@@ -9,23 +9,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel"
-import {
-  Gift,
-  Languages,
-  ShieldOff,
-  Coins,
-  Flame,
-  MessageSquare,
-  BookOpen,
-  Building,
-  Users,
-  ShieldCheck,
-  GitBranch,
-} from "lucide-react"
+import { Gift, Languages, ShieldOff, Coins, Flame, MessageSquare, BookOpen, Building, Users } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { Share2, VoteIcon } from "lucide-react"
+import { Share2 } from "lucide-react"
 
 const translations = {
   pt: {
@@ -383,22 +371,25 @@ const translations = {
 const banners = {
   novice: [
     {
-      icon: BookOpen,
-      title: "Guia do Iniciante",
-      description: "Aprenda os conceitos básicos de cripto e Web3 de forma segura.",
-      cta: "Começar a Aprender",
+      icon: Share2,
+      title: "Seja Afiliado",
+      description: "Indique novos usuários para a plataforma e ganhe até 40% de comissão.",
+      cta: "Quero ser Afiliado",
+      link: "https://www.agdtoken.in/afiliado/cadastro",
     },
     {
-      icon: ShieldCheck,
-      title: "Segurança em Primeiro Lugar",
-      description: "Descubra como proteger seus ativos digitais contra fraudes.",
-      cta: "Ver Dicas de Segurança",
+      icon: Coins,
+      title: "Ganhe + Bônus em Tokens",
+      description: "Complete tarefas especiais e ganhe bônus extras em tokens AGD.",
+      cta: "Ver Tarefas",
+      link: "https://www.agdtoken.in/ofertas?utm=final_cta&lang=pt",
     },
     {
       icon: Users,
-      title: "Comunidade de Apoio",
-      description: "Junte-se a outros iniciantes e tire suas dúvidas em nosso grupo.",
+      title: "Ganhe + Tokens Grátis",
+      description: "Junte-se à nossa comunidade exclusiva e receba tokens gratuitos.",
       cta: "Entrar na Comunidade",
+      link: "https://www.agroderi.in/?step=cadastro",
     },
   ],
   intermediate: [
@@ -407,38 +398,44 @@ const banners = {
       title: "Seja Afiliado",
       description: "Indique novos usuários para a plataforma e ganhe até 40% de comissão.",
       cta: "Quero ser Afiliado",
-    },
-    {
-      icon: VoteIcon,
-      title: "Seja Sócio",
-      description: "Participe da nossa DAO, vote em propostas e ajude a decidir o futuro do projeto.",
-      cta: "Entrar na DAO",
+      link: "https://www.agdtoken.in/afiliado/cadastro",
     },
     {
       icon: Coins,
-      title: "Ganhe Mais Tokens",
-      description: "Complete tarefas na comunidade, participe de eventos e acumule mais AGD.",
+      title: "Ganhe + Bônus em Tokens",
+      description: "Complete tarefas especiais e ganhe bônus extras em tokens AGD.",
       cta: "Ver Tarefas",
+      link: "https://www.agdtoken.in/ofertas?utm=final_cta&lang=pt",
+    },
+    {
+      icon: Users,
+      title: "Ganhe + Tokens Grátis",
+      description: "Junte-se à nossa comunidade exclusiva e receba tokens gratuitos.",
+      cta: "Entrar na Comunidade",
+      link: "https://www.agroderi.in/?step=cadastro",
     },
   ],
   advanced: [
     {
-      icon: Flame,
-      title: "Staking & Farming",
-      description: "Maximize seus rendimentos com nossos pools de liquidez e staking de AGD.",
-      cta: "Acessar Pools",
+      icon: Share2,
+      title: "Seja Afiliado",
+      description: "Indique novos usuários para a plataforma e ganhe até 40% de comissão.",
+      cta: "Quero ser Afiliado",
+      link: "https://www.agdtoken.in/afiliado/cadastro",
     },
     {
-      icon: GitBranch,
-      title: "Derivativos Descentralizados",
-      description: "Opere contratos futuros e opções de commodities agrícolas tokenizadas.",
-      cta: "Ir para o Mercado",
+      icon: Coins,
+      title: "Ganhe + Bônus em Tokens",
+      description: "Complete tarefas especiais e ganhe bônus extras em tokens AGD.",
+      cta: "Ver Tarefas",
+      link: "https://www.agdtoken.in/ofertas?utm=final_cta&lang=pt",
     },
     {
-      icon: Building,
-      title: "Tokenização de Ativos",
-      description: "Traga seus próprios ativos do agronegócio para o ecossistema Agroderi.",
-      cta: "Fale com um Especialista",
+      icon: Users,
+      title: "Ganhe + Tokens Grátis",
+      description: "Junte-se à nossa comunidade exclusiva e receba tokens gratuitos.",
+      cta: "Entrar na Comunidade",
+      link: "https://www.agroderi.in/?step=cadastro",
     },
   ],
 }
@@ -696,8 +693,10 @@ export function FunnelClient({ serverVideos }: { serverVideos: Record<string, st
                             <p className="text-sm text-muted-foreground">{banner.description}</p>
                           </CardContent>
                           <CardFooter>
-                            <Button variant="outline" size="sm" className="w-full bg-transparent">
-                              {banner.cta}
+                            <Button variant="outline" size="sm" className="w-full bg-transparent" asChild>
+                              <a href={banner.link} target="_blank" rel="noopener noreferrer">
+                                {banner.cta}
+                              </a>
                             </Button>
                           </CardFooter>
                         </Card>
