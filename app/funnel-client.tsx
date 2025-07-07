@@ -749,9 +749,13 @@ export function FunnelClient({ serverVideos }: { serverVideos: Record<string, st
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <Button asChild variant="outline" className="justify-start gap-2 bg-transparent">
-                <Link href="/whitepaper" target="_blank" rel="noopener noreferrer">
+                <a
+                  href="https://drive.google.com/file/d/1wmgFWaUHh10vDAl0sVzZACGNRzGzqRp5/view?usp=sharing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <BookOpen size={16} /> {t.credibilityLinks.whitepaper}
-                </Link>
+                </a>
               </Button>
               <Button asChild variant="outline" className="justify-start gap-2 bg-transparent">
                 <a href="https://akintec.com" target="_blank" rel="noopener noreferrer">
@@ -764,7 +768,7 @@ export function FunnelClient({ serverVideos }: { serverVideos: Record<string, st
                 </a>
               </Button>
               <Button asChild variant="outline" className="justify-start gap-2 bg-transparent">
-                <a href="/investors" target="_blank" rel="noopener noreferrer">
+                <a href="https://www.instagram.com/akintecopenbanking" target="_blank" rel="noopener noreferrer">
                   <Users size={16} /> {t.credibilityLinks.investors}
                 </a>
               </Button>
