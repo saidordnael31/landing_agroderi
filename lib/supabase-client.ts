@@ -28,8 +28,12 @@ export interface Affiliate {
   user_id: string
   affiliate_code: string
   tier: "standard" | "premium"
+  experience?: string
+  channels: string[]
+  motivation?: string
   total_sales: number
   total_commission: number
+  commission_rate: number
   status: "active" | "pending" | "blocked"
   created_at: string
   updated_at: string

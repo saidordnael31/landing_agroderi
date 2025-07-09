@@ -1,55 +1,59 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase, createUser, createInvestment, getAffiliateByCode, logEvent } from "@/lib/supabase-client"
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(request: NextRequest) {
   try {
-    const {
-      name,
-      email,
-      phone,
-      cpf,
-      planId,
-      amount,
-      affiliateCode,
-      utmSource,
-      paymentMethod = "pix",
-    } = await request.json()
+    const body = await request.json()
+    console.log("📥 Dados do investimento:", body)
 
-    // Validações básicas
-    if (!name || !email || !phone || !planId || !amount) {
-      return NextResponse.json({ error: "Dados obrigatórios: nome, email, telefone, plano e valor" }, { status: 400 })
-    }
+    const { email, nome, telefone, planId, amount, affiliateCode, utmSource, utmCampaign } = body
 
-    if (amount < 100) {
-      return NextResponse.json({ error: "Valor mínimo de investimento é R$ 100" }, { status: 400 })
+    // Validações
+    if (!email || !nome || !telefone || !planId || !amount) {
+      return NextResponse.json({ error: "Dados obrigatórios faltando" }, { status: 400 })
     }
 
     // Buscar ou criar usuário
-    const user = await supabase.from("users").select("*").eq("email", email.toLowerCase()).single()
+    let { data: user, error: userError } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .single()
 
-    if (user.error) {
-      // Criar novo usuário
-      const newUser = await createUser({
-        name,
-        email: email.toLowerCase(),
-        phone,
-        cpf,
-        role: "buyer",
-        status: "active",
-      })
+    if (userError && userError.code === "PGRST116") {
+      // Usuário não existe, criar
+      const { data: newUser, error: createError } = await supabaseAdmin
+        .from("users")
+        .insert({
+          name: nome,
+          email: email.toLowerCase(),
+          phone: telefone,
+          role: "buyer",
+          status: "active",
+        })
+        .select("id")
+        .single()
 
-      if (!newUser) {
+      if (createError) {
+        console.error("Erro ao criar usuário:", createError)
         return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
       }
-      user.data = newUser
+      user = newUser
     }
 
     // Buscar afiliado se código fornecido
-    let affiliate = null
+    let affiliateId = null
     if (affiliateCode) {
-      affiliate = await getAffiliateByCode(affiliateCode)
-      if (!affiliate) {
-        return NextResponse.json({ error: "Código de afiliado inválido" }, { status: 400 })
+      const { data: affiliate } = await supabaseAdmin
+        .from("affiliates")
+        .select("id")
+        .eq("affiliate_code", affiliateCode.toUpperCase())
+        .single()
+
+      if (affiliate) {
+        affiliateId = affiliate.id
       }
     }
 
@@ -58,129 +62,53 @@ export async function POST(request: NextRequest) {
     let affiliateBonus = 0
 
     switch (planId) {
-      case "starter":
-        bonus = amount * 0.05 // 5%
-        affiliateBonus = affiliate ? amount * 0.03 : 0 // 3%
-        break
-      case "premium":
+      case "plano-basico":
         bonus = amount * 0.1 // 10%
-        affiliateBonus = affiliate ? amount * 0.05 : 0 // 5%
+        affiliateBonus = amount * 0.05 // 5%
         break
-      case "vip":
-        bonus = amount * 0.15 // 15%
-        affiliateBonus = affiliate ? amount * 0.08 : 0 // 8%
+      case "plano-premium":
+        bonus = amount * 0.2 // 20%
+        affiliateBonus = amount * 0.1 // 10%
         break
-      default:
-        bonus = amount * 0.03 // 3%
-        affiliateBonus = affiliate ? amount * 0.02 : 0 // 2%
+      case "plano-vip":
+        bonus = amount * 0.3 // 30%
+        affiliateBonus = amount * 0.15 // 15%
+        break
     }
 
-    // Data de desbloqueio (30 dias)
-    const unlockDate = new Date()
-    unlockDate.setDate(unlockDate.getDate() + 30)
-
     // Criar investimento
-    const investment = await createInvestment({
-      user_id: user.data.id,
-      plan_id: planId,
-      amount,
-      bonus,
-      affiliate_bonus: affiliateBonus,
-      affiliate_id: affiliate?.id,
-      status: "pending",
-      purchase_date: new Date().toISOString(),
-      unlock_date: unlockDate.toISOString(),
-      payment_method: paymentMethod,
-      utm_source: utmSource,
-      transaction_id: `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    })
+    const { data: investment, error: investmentError } = await supabaseAdmin
+      .from("investments")
+      .insert({
+        user_id: user.id,
+        plan_id: planId,
+        amount: amount,
+        bonus: bonus,
+        affiliate_bonus: affiliateBonus,
+        affiliate_id: affiliateId,
+        status: "pending",
+        payment_method: "pix",
+        utm_source: utmSource,
+        utm_campaign: utmCampaign,
+        unlock_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 ano
+      })
+      .select("id, amount, bonus")
+      .single()
 
-    if (!investment) {
+    if (investmentError) {
+      console.error("Erro ao criar investimento:", investmentError)
       return NextResponse.json({ error: "Erro ao criar investimento" }, { status: 500 })
     }
 
-    // Log do evento
-    await logEvent({
-      user_id: user.data.id,
-      event_name: "investment_created",
-      event_data: {
-        plan_id: planId,
-        amount,
-        affiliate_code: affiliateCode,
-        utm_source: utmSource,
-      },
-      ip_address: request.ip,
-    })
-
     return NextResponse.json({
       success: true,
+      investmentId: investment.id,
+      amount: investment.amount,
+      bonus: investment.bonus,
       message: "Investimento criado com sucesso!",
-      data: {
-        investment: {
-          id: investment.id,
-          plan_id: investment.plan_id,
-          amount: investment.amount,
-          bonus: investment.bonus,
-          affiliate_bonus: investment.affiliate_bonus,
-          status: investment.status,
-          unlock_date: investment.unlock_date,
-          transaction_id: investment.transaction_id,
-        },
-        redirect_url: "https://www.agroderi.in",
-      },
     })
   } catch (error) {
-    console.error("Erro ao criar investimento:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get("userId")
-    const status = searchParams.get("status")
-
-    if (!userId) {
-      return NextResponse.json({ error: "ID do usuário é obrigatório" }, { status: 400 })
-    }
-
-    let query = supabase
-      .from("investments")
-      .select(`
-        *,
-        users (
-          id,
-          name,
-          email
-        ),
-        affiliates (
-          id,
-          affiliate_code,
-          users (
-            name
-          )
-        )
-      `)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-
-    if (status) {
-      query = query.eq("status", status)
-    }
-
-    const { data: investments, error } = await query
-
-    if (error) {
-      return NextResponse.json({ error: "Erro ao buscar investimentos" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: investments,
-    })
-  } catch (error) {
-    console.error("Erro ao buscar investimentos:", error)
+    console.error("Erro na API de investimentos:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

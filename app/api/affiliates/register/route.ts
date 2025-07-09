@@ -1,104 +1,179 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase, createUser, createAffiliate } from "@/lib/supabase-client"
+import { createClient } from "@supabase/supabase-js"
+import bcrypt from "bcryptjs"
+import { generateAffiliateCode } from "@/lib/affiliate-utils"
+
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(request: NextRequest) {
-  try {
-    const { name, email, phone, cpf } = await request.json()
+  console.log("🚀 [REGISTER] Iniciando cadastro...")
 
-    // Validações básicas
-    if (!name || !email || !phone) {
-      return NextResponse.json({ error: "Nome, email e telefone são obrigatórios" }, { status: 400 })
+  try {
+    // Parse do body
+    const body = await request.json()
+    const { nome, email, telefone, cpf, experiencia, canais, motivacao, senha } = body
+
+    console.log("📧 [REGISTER] Email:", email)
+
+    // Validações
+    if (!nome || !email || !telefone || !senha) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Campos obrigatórios não preenchidos",
+          code: "MISSING_FIELDS",
+        },
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    // Verificar se email já existe
-    const { data: existingUser } = await supabase.from("users").select("id").eq("email", email.toLowerCase()).single()
+    // Verificar email existente
+    const { data: existingUser } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .single()
 
     if (existingUser) {
-      return NextResponse.json({ error: "Este email já está cadastrado" }, { status: 409 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Email já cadastrado",
+          code: "EMAIL_EXISTS",
+        },
+        {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    // Criar usuário
-    const user = await createUser({
-      name,
-      email: email.toLowerCase(),
-      phone,
-      cpf,
-      role: "affiliate",
-      status: "active",
-    })
+    // Hash da senha
+    const passwordHash = await bcrypt.hash(senha, 12)
 
-    if (!user) {
-      return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
+    // Gerar código do afiliado
+    const affiliateCode = generateAffiliateCode(nome)
+
+    // Criar usuário
+    const { data: newUser, error: userError } = await supabaseAdmin
+      .from("users")
+      .insert({
+        name: nome,
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        role: "affiliate",
+        status: "active",
+        created_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single()
+
+    if (userError || !newUser) {
+      console.error("❌ [REGISTER] Erro ao criar usuário:", userError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Erro ao criar usuário",
+          code: "USER_ERROR",
+        },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     // Criar afiliado
-    const affiliate = await createAffiliate(user.id, "standard")
+    const { data: newAffiliate, error: affiliateError } = await supabaseAdmin
+      .from("affiliates")
+      .insert({
+        user_id: newUser.id,
+        affiliate_code: affiliateCode,
+        phone: telefone,
+        cpf: cpf || null,
+        experience: experiencia || null,
+        channels: canais || [],
+        motivation: motivacao || null,
+        tier: "bronze",
+        status: "active",
+        total_sales: 0,
+        total_commission: 0,
+        created_at: new Date().toISOString(),
+      })
+      .select("id, affiliate_code")
+      .single()
 
-    if (!affiliate) {
-      // Se falhou, deletar o usuário criado
-      await supabase.from("users").delete().eq("id", user.id)
-      return NextResponse.json({ error: "Erro ao criar afiliado" }, { status: 500 })
+    if (affiliateError || !newAffiliate) {
+      console.error("❌ [REGISTER] Erro ao criar afiliado:", affiliateError)
+
+      // Rollback - deletar usuário
+      await supabaseAdmin.from("users").delete().eq("id", newUser.id)
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Erro ao criar afiliado",
+          code: "AFFILIATE_ERROR",
+        },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Afiliado cadastrado com sucesso!",
-      data: {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-        },
-        affiliate: {
-          id: affiliate.id,
-          code: affiliate.affiliate_code,
-          tier: affiliate.tier,
-          status: affiliate.status,
+    console.log("✅ [REGISTER] Sucesso:", newAffiliate.affiliate_code)
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Cadastro realizado com sucesso!",
+        data: {
+          user: {
+            id: newUser.id,
+            name: nome,
+            email: email.toLowerCase(),
+            role: "affiliate",
+          },
+          affiliate: {
+            id: newAffiliate.id,
+            affiliate_code: newAffiliate.affiliate_code,
+            tier: "bronze",
+            status: "active",
+          },
         },
       },
-    })
+      {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   } catch (error) {
-    console.error("Erro no cadastro de afiliado:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    console.error("💥 [REGISTER] Erro:", error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Erro interno do servidor",
+        code: "INTERNAL_ERROR",
+      },
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const code = searchParams.get("code")
-
-    if (!code) {
-      return NextResponse.json({ error: "Código do afiliado é obrigatório" }, { status: 400 })
-    }
-
-    const { data: affiliate, error } = await supabase
-      .from("affiliates")
-      .select(`
-        *,
-        users (
-          id,
-          name,
-          email,
-          phone,
-          status
-        )
-      `)
-      .eq("affiliate_code", code.toUpperCase())
-      .eq("status", "active")
-      .single()
-
-    if (error || !affiliate) {
-      return NextResponse.json({ error: "Afiliado não encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: affiliate,
-    })
-  } catch (error) {
-    console.error("Erro ao buscar afiliado:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
-  }
+export async function GET() {
+  return NextResponse.json(
+    { message: "API de cadastro funcionando" },
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  )
 }

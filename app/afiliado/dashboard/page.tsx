@@ -20,49 +20,89 @@ import {
   MessageCircle,
   Instagram,
   Facebook,
+  User,
+  Phone,
+  Mail,
+  Calendar,
+  CreditCard,
 } from "lucide-react"
+import {
+  getAffiliateStats,
+  getAffiliateSales,
+  getAffiliatePayments,
+  getAffiliateProfile,
+  type AffiliateStats,
+  type AffiliateSale,
+  type AffiliatePayment,
+} from "@/lib/affiliate-dashboard"
+import { formatCurrency, formatPercentage, getTierInfo } from "@/lib/affiliate-utils"
 
 export default function DashboardAfiliado() {
   const router = useRouter()
-  const [affiliateData, setAffiliateData] = useState(null)
+  const [user, setUser] = useState<any>(null)
+  const [affiliate, setAffiliate] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [stats, setStats] = useState<AffiliateStats | null>(null)
+  const [sales, setSales] = useState<AffiliateSale[]>([])
+  const [payments, setPayments] = useState<AffiliatePayment[]>([])
+  const [loading, setLoading] = useState(true)
   const [copiedLink, setCopiedLink] = useState("")
-  const [stats, setStats] = useState({
-    vendas: 12,
-    comissao: 2450,
-    cliques: 156,
-    conversao: 7.7,
-    pendente: 450,
-  })
 
   useEffect(() => {
-    const currentAffiliate = localStorage.getItem("current_affiliate")
-    if (!currentAffiliate) {
-      router.push("/afiliado/login")
-      return
-    }
+    loadDashboardData()
+  }, [])
 
-    // Carrega dados do afiliado
-    const data = localStorage.getItem(`affiliate_${currentAffiliate}`)
-    if (data) {
-      setAffiliateData(JSON.parse(data))
-    } else {
-      // Dados demo se não encontrar
-      setAffiliateData({
-        id: currentAffiliate,
-        nome: "João Silva",
-        email: "joao@email.com",
-        status: "ativo",
-        tier: "Premium",
-      })
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+
+      // Verificar se usuário está logado
+      const userData = localStorage.getItem("user")
+      const affiliateData = localStorage.getItem("affiliate")
+
+      if (!userData) {
+        router.push("/afiliado/login")
+        return
+      }
+
+      const parsedUser = JSON.parse(userData)
+      const parsedAffiliate = affiliateData ? JSON.parse(affiliateData) : null
+
+      setUser(parsedUser)
+      setAffiliate(parsedAffiliate)
+
+      console.log("👤 [DASHBOARD] Usuário logado:", parsedUser)
+      console.log("🤝 [DASHBOARD] Dados do afiliado:", parsedAffiliate)
+
+      if (parsedAffiliate?.id) {
+        // Carregar dados do dashboard
+        const [statsData, salesData, paymentsData, profileData] = await Promise.all([
+          getAffiliateStats(parsedAffiliate.id),
+          getAffiliateSales(parsedAffiliate.id, 5),
+          getAffiliatePayments(parsedAffiliate.id, 5),
+          getAffiliateProfile(parsedUser.id),
+        ])
+
+        setStats(statsData)
+        setSales(salesData)
+        setPayments(paymentsData)
+        setProfile(profileData)
+
+        console.log("📊 [DASHBOARD] Dados carregados:", { statsData, salesData, paymentsData, profileData })
+      }
+    } catch (error) {
+      console.error("💥 [DASHBOARD] Erro ao carregar dados:", error)
+    } finally {
+      setLoading(false)
     }
-  }, [router])
+  }
 
   const generateLink = (page = "ofertas") => {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com"
-    return `${baseUrl}/rastreio?utm_id=${affiliateData?.id}&utm_source=affiliate&redirect=${page}`
+    return `${baseUrl}/rastreio?utm_id=${affiliate?.affiliate_code}&utm_source=affiliate&redirect=${page}`
   }
 
-  const handleCopyLink = (page) => {
+  const handleCopyLink = (page: string) => {
     const link = generateLink(page)
     navigator.clipboard.writeText(link)
     setCopiedLink(page)
@@ -70,11 +110,13 @@ export default function DashboardAfiliado() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("current_affiliate")
+    localStorage.removeItem("user")
+    localStorage.removeItem("affiliate")
+    localStorage.removeItem("token")
     router.push("/afiliado/login")
   }
 
-  if (!affiliateData) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-zinc-50 to-green-50 flex items-center justify-center">
         <div className="text-center">
@@ -85,6 +127,12 @@ export default function DashboardAfiliado() {
     )
   }
 
+  if (!user) {
+    return null
+  }
+
+  const tierInfo = getTierInfo(profile?.tier || "bronze")
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-zinc-50 to-green-50">
       {/* Header */}
@@ -94,7 +142,7 @@ export default function DashboardAfiliado() {
             <div>
               <h1 className="text-2xl font-bold text-zinc-800">Dashboard do Afiliado</h1>
               <p className="text-zinc-600">
-                Olá, {affiliateData.nome} • ID: {affiliateData.id}
+                Olá, {user.name} • Código: {affiliate?.affiliate_code || profile?.affiliate_code}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -106,11 +154,8 @@ export default function DashboardAfiliado() {
               >
                 Materiais
               </Button>
-              <Badge
-                variant="outline"
-                className={`${affiliateData.tier === "Premium" ? "border-purple-500 text-purple-700" : "border-blue-500 text-blue-700"}`}
-              >
-                {affiliateData.tier || "Standard"}
+              <Badge variant="outline" className={`border-2 ${tierInfo.color} ${tierInfo.bgColor}`}>
+                {tierInfo.name} • {formatPercentage(tierInfo.rate * 100)}
               </Badge>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 Sair
@@ -128,8 +173,8 @@ export default function DashboardAfiliado() {
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-6 h-6 text-green-600" />
                 <div>
-                  <p className="text-xs text-zinc-600">Vendas</p>
-                  <p className="text-xl font-bold">{stats.vendas}</p>
+                  <p className="text-xs text-zinc-600">Vendas Totais</p>
+                  <p className="text-xl font-bold">{stats?.totalSales || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -140,8 +185,8 @@ export default function DashboardAfiliado() {
               <div className="flex items-center space-x-2">
                 <DollarSign className="w-6 h-6 text-green-600" />
                 <div>
-                  <p className="text-xs text-zinc-600">Comissão</p>
-                  <p className="text-xl font-bold">R$ {stats.comissao}</p>
+                  <p className="text-xs text-zinc-600">Comissão Total</p>
+                  <p className="text-xl font-bold">{formatCurrency(stats?.totalCommission || 0)}</p>
                 </div>
               </div>
             </CardContent>
@@ -153,7 +198,7 @@ export default function DashboardAfiliado() {
                 <Users className="w-6 h-6 text-blue-600" />
                 <div>
                   <p className="text-xs text-zinc-600">Cliques</p>
-                  <p className="text-xl font-bold">{stats.cliques}</p>
+                  <p className="text-xl font-bold">{stats?.totalClicks || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -165,7 +210,7 @@ export default function DashboardAfiliado() {
                 <BarChart3 className="w-6 h-6 text-purple-600" />
                 <div>
                   <p className="text-xs text-zinc-600">Conversão</p>
-                  <p className="text-xl font-bold">{stats.conversao}%</p>
+                  <p className="text-xl font-bold">{formatPercentage(stats?.conversionRate || 0)}</p>
                 </div>
               </div>
             </CardContent>
@@ -177,20 +222,116 @@ export default function DashboardAfiliado() {
                 <Gift className="w-6 h-6 text-orange-600" />
                 <div>
                   <p className="text-xs text-zinc-600">Pendente</p>
-                  <p className="text-xl font-bold">R$ {stats.pendente}</p>
+                  <p className="text-xl font-bold">{formatCurrency(stats?.pendingCommission || 0)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="links" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="perfil" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="perfil">Perfil</TabsTrigger>
             <TabsTrigger value="links">Meus Links</TabsTrigger>
-            <TabsTrigger value="materiais">Materiais</TabsTrigger>
             <TabsTrigger value="vendas">Vendas</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
+            <TabsTrigger value="materiais">Materiais</TabsTrigger>
           </TabsList>
+
+          {/* Perfil Tab */}
+          <TabsContent value="perfil" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Dados Pessoais */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <User className="w-5 h-5" />
+                    <span>Dados Pessoais</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <User className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Nome</p>
+                      <p className="font-semibold">{user.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <Mail className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Email</p>
+                      <p className="font-semibold">{user.email}</p>
+                    </div>
+                  </div>
+
+                  {profile?.phone && (
+                    <div className="flex items-center space-x-3">
+                      <Phone className="w-4 h-4 text-zinc-500" />
+                      <div>
+                        <p className="text-sm text-zinc-600">Telefone</p>
+                        <p className="font-semibold">{profile.phone}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {profile?.cpf && (
+                    <div className="flex items-center space-x-3">
+                      <CreditCard className="w-4 h-4 text-zinc-500" />
+                      <div>
+                        <p className="text-sm text-zinc-600">CPF</p>
+                        <p className="font-semibold">{profile.cpf}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Membro desde</p>
+                      <p className="font-semibold">
+                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("pt-BR") : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Métricas do Mês */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <BarChart3 className="w-5 h-5" />
+                    <span>Métricas do Mês</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Vendas este mês</span>
+                    <span className="font-bold text-green-600">{stats?.currentMonthSales || 0}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Comissão este mês</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(stats?.currentMonthCommission || 0)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Taxa de comissão</span>
+                    <span className="font-bold text-purple-600">{formatPercentage(tierInfo.rate * 100)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Nível atual</span>
+                    <Badge className={`${tierInfo.color} ${tierInfo.bgColor}`}>{tierInfo.name}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* Links Tab */}
           <TabsContent value="links" className="space-y-6">
@@ -299,6 +440,93 @@ export default function DashboardAfiliado() {
             </Card>
           </TabsContent>
 
+          {/* Vendas Tab */}
+          <TabsContent value="vendas" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico de Vendas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {sales.length > 0 ? (
+                  <div className="space-y-3">
+                    {sales.map((sale) => (
+                      <div key={sale.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold">{sale.customerName}</p>
+                          <p className="text-sm text-zinc-600">
+                            {sale.date} • {sale.product}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">{formatCurrency(sale.saleValue)}</p>
+                          <p className="text-sm text-green-600">Comissão: {formatCurrency(sale.commission)}</p>
+                        </div>
+                        <Badge variant={sale.status === "paid" ? "default" : "secondary"}>
+                          {sale.status === "paid" ? "Pago" : sale.status === "pending" ? "Pendente" : "Cancelado"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-zinc-600">Nenhuma venda registrada ainda.</p>
+                    <p className="text-sm text-zinc-500 mt-2">Comece a divulgar seus links para gerar vendas!</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Pagamentos Tab */}
+          <TabsContent value="pagamentos" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico de Pagamentos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {payments.length > 0 ? (
+                  <div className="space-y-3">
+                    {payments.map((payment) => (
+                      <div key={payment.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold">{formatCurrency(payment.amount)}</p>
+                          <p className="text-sm text-zinc-600">
+                            {payment.date} • Ref: {payment.reference}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm">{payment.method}</p>
+                          <Badge variant={payment.status === "paid" ? "default" : "secondary"}>
+                            {payment.status === "paid"
+                              ? "Pago"
+                              : payment.status === "pending"
+                                ? "Pendente"
+                                : "Processando"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-zinc-600">Nenhum pagamento registrado ainda.</p>
+                    <p className="text-sm text-zinc-500 mt-2">Os pagamentos são processados semanalmente.</p>
+                  </div>
+                )}
+
+                {stats?.pendingCommission && stats.pendingCommission > 0 && (
+                  <Alert className="mt-4">
+                    <DollarSign className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Próximo pagamento:</strong> {formatCurrency(stats.pendingCommission)} pendente para
+                      processamento
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Materiais Tab */}
           <TabsContent value="materiais" className="space-y-6">
             <Card>
@@ -332,79 +560,6 @@ export default function DashboardAfiliado() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Vendas Tab */}
-          <TabsContent value="vendas" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Histórico de Vendas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { data: "2024-01-15", cliente: "Maria S.", valor: "R$ 1.500", comissao: "R$ 225", status: "Pago" },
-                    { data: "2024-01-14", cliente: "João P.", valor: "R$ 500", comissao: "R$ 50", status: "Pago" },
-                    {
-                      data: "2024-01-13",
-                      cliente: "Ana L.",
-                      valor: "R$ 2.000",
-                      comissao: "R$ 300",
-                      status: "Pendente",
-                    },
-                    { data: "2024-01-12", cliente: "Carlos M.", valor: "R$ 800", comissao: "R$ 80", status: "Pago" },
-                  ].map((venda, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold">{venda.cliente}</p>
-                        <p className="text-sm text-zinc-600">{venda.data}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{venda.valor}</p>
-                        <p className="text-sm text-green-600">Comissão: {venda.comissao}</p>
-                      </div>
-                      <Badge variant={venda.status === "Pago" ? "default" : "secondary"}>{venda.status}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Pagamentos Tab */}
-          <TabsContent value="pagamentos" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Histórico de Pagamentos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { data: "2024-01-08", valor: "R$ 1.200", metodo: "PIX", status: "Pago" },
-                    { data: "2024-01-01", valor: "R$ 850", metodo: "PIX", status: "Pago" },
-                    { data: "2023-12-25", valor: "R$ 650", metodo: "PIX", status: "Pago" },
-                  ].map((pagamento, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-zinc-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold">{pagamento.valor}</p>
-                        <p className="text-sm text-zinc-600">{pagamento.data}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm">{pagamento.metodo}</p>
-                        <Badge variant="default">{pagamento.status}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Alert className="mt-4">
-                  <DollarSign className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Próximo pagamento:</strong> Segunda-feira, 22/01/2024 • R$ 450,00 pendente
-                  </AlertDescription>
-                </Alert>
               </CardContent>
             </Card>
           </TabsContent>

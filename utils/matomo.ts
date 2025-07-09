@@ -1,97 +1,77 @@
-// Utilitários para rastreamento com Matomo Analytics
-
-interface MatomoEvent {
-  category: string
-  action: string
-  name?: string
-  value?: number
+// Configuração do Matomo/Google Analytics
+declare global {
+  interface Window {
+    gtag: (...args: any[]) => void
+    dataLayer: any[]
+  }
 }
 
 // Função para rastrear eventos
-export function trackEvent(category: string, action: string, name?: string, value?: number) {
-  // Se estiver no servidor, não fazer nada
-  if (typeof window === "undefined") return
-
+export function trackEvent(action: string, category = "general", label?: string, value?: number) {
   try {
-    // Verificar se o Matomo está carregado
-    if (typeof window._paq !== "undefined") {
-      window._paq.push(["trackEvent", category, action, name, value])
-    } else {
-      // Fallback para Google Analytics se disponível
-      if (typeof window.gtag !== "undefined") {
-        window.gtag("event", action, {
-          event_category: category,
-          event_label: name,
-          value: value,
-        })
-      }
+    // Google Analytics 4
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("event", action, {
+        event_category: category,
+        event_label: label,
+        value: value,
+      })
     }
+
+    // Console log para debug
+    console.log("📊 Evento rastreado:", { action, category, label, value })
   } catch (error) {
-    console.warn("Erro ao rastrear evento:", error)
+    console.error("Erro ao rastrear evento:", error)
   }
 }
 
 // Função para rastrear visualizações de página
-export function trackPageView(url?: string) {
-  if (typeof window === "undefined") return
-
+export function trackPageView(url: string, title?: string) {
   try {
-    if (typeof window._paq !== "undefined") {
-      if (url) {
-        window._paq.push(["setCustomUrl", url])
-      }
-      window._paq.push(["trackPageView"])
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("config", process.env.NEXT_PUBLIC_GA_ID, {
+        page_location: url,
+        page_title: title,
+      })
     }
+
+    console.log("📄 Página rastreada:", { url, title })
   } catch (error) {
-    console.warn("Erro ao rastrear página:", error)
+    console.error("Erro ao rastrear página:", error)
   }
 }
 
 // Função para rastrear conversões
-export function trackConversion(goalId: number, revenue?: number) {
-  if (typeof window === "undefined") return
-
+export function trackConversion(action: string, value?: number, currency = "BRL") {
   try {
-    if (typeof window._paq !== "undefined") {
-      window._paq.push(["trackGoal", goalId, revenue])
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("event", "conversion", {
+        send_to: process.env.NEXT_PUBLIC_GA_ID,
+        event_category: "ecommerce",
+        event_label: action,
+        value: value,
+        currency: currency,
+      })
     }
+
+    console.log("💰 Conversão rastreada:", { action, value, currency })
   } catch (error) {
-    console.warn("Erro ao rastrear conversão:", error)
+    console.error("Erro ao rastrear conversão:", error)
   }
 }
 
-// Eventos específicos do Agroderi
-export const AgroEvents = {
-  // Landing page
-  viewLandingPage: () => trackEvent("Landing", "View", "Homepage"),
-  clickCTA: (location: string) => trackEvent("Landing", "Click CTA", location),
+// Função para identificar usuário
+export function identifyUser(userId: string, properties?: Record<string, any>) {
+  try {
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("config", process.env.NEXT_PUBLIC_GA_ID, {
+        user_id: userId,
+        custom_map: properties,
+      })
+    }
 
-  // Afiliados
-  affiliateSignup: () => trackEvent("Affiliate", "Signup"),
-  affiliateLogin: () => trackEvent("Affiliate", "Login"),
-  generateAffiliateLink: () => trackEvent("Affiliate", "Generate Link"),
-
-  // Investimentos
-  viewPlans: () => trackEvent("Investment", "View Plans"),
-  selectPlan: (planId: string) => trackEvent("Investment", "Select Plan", planId),
-  startPayment: (planId: string, amount: number) => trackEvent("Investment", "Start Payment", planId, amount),
-  completePayment: (planId: string, amount: number) => trackEvent("Investment", "Complete Payment", planId, amount),
-
-  // Missões
-  viewMissions: () => trackEvent("Mission", "View"),
-  startMission: (step: string) => trackEvent("Mission", "Start", step),
-  completeMission: (step: string) => trackEvent("Mission", "Complete", step),
-  claimReward: (amount: number) => trackEvent("Mission", "Claim Reward", "Airdrop", amount),
-
-  // Admin
-  viewDashboard: (role: string) => trackEvent("Admin", "View Dashboard", role),
-  exportData: (type: string) => trackEvent("Admin", "Export", type),
-}
-
-// Declarações TypeScript para window
-declare global {
-  interface Window {
-    _paq: any[]
-    gtag: (...args: any[]) => void
+    console.log("👤 Usuário identificado:", { userId, properties })
+  } catch (error) {
+    console.error("Erro ao identificar usuário:", error)
   }
 }

@@ -1,148 +1,181 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import type React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, ArrowRight } from "lucide-react"
+import { Eye, EyeOff, Loader2, LogIn, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { loginUser, type LoginData } from "@/lib/supabase-auth"
 
 export default function LoginAfiliado() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const [affiliateId, setAffiliateId] = useState("")
-  const [senha, setSenha] = useState("")
+  const [formData, setFormData] = useState({
+    email: "",
+    senha: "",
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    const idFromUrl = searchParams.get("id")
-    if (idFromUrl) {
-      setAffiliateId(idFromUrl)
-    }
-  }, [searchParams])
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
     setError("")
 
-    // Simula verificação de login
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Verifica se o afiliado existe (em produção seria uma API)
-    const affiliateData = localStorage.getItem(`affiliate_${affiliateId}`)
-
-    if (!affiliateData) {
-      setError("ID de afiliado não encontrado. Verifique se você já se cadastrou.")
-      setIsLoading(false)
+    // Validações no frontend
+    if (!formData.email.trim() || !formData.senha.trim()) {
+      setError("Email e senha são obrigatórios")
+      setIsSubmitting(false)
       return
     }
 
-    const affiliate = JSON.parse(affiliateData)
-
-    // Senha padrão para demo (em produção seria hash)
-    if (senha !== "123456" && senha !== affiliate.cpf?.replace(/\D/g, "").slice(-6)) {
-      setError("Senha incorreta. Use 123456 ou os últimos 6 dígitos do seu CPF.")
-      setIsLoading(false)
+    if (!formData.email.includes("@")) {
+      setError("Email inválido")
+      setIsSubmitting(false)
       return
     }
 
-    // Login bem-sucedido
-    localStorage.setItem("current_affiliate", affiliateId)
+    try {
+      console.log("🔐 [FRONTEND] Iniciando login direto no Supabase...")
 
-    // Track login
-    if (typeof window !== "undefined" && window.gtag) {
-      window.gtag("event", "affiliate_login", {
-        affiliate_id: affiliateId,
-      })
+      const loginData: LoginData = {
+        email: formData.email.trim(),
+        senha: formData.senha,
+      }
+
+      const result = await loginUser(loginData)
+
+      console.log("📥 [FRONTEND] Resultado do login:", result)
+
+      if (result.success) {
+        console.log("✅ [FRONTEND] Login realizado com sucesso!")
+
+        // Salvar dados no localStorage
+        if (result.data) {
+          localStorage.setItem("user", JSON.stringify(result.data.user))
+          if (result.data.affiliate) {
+            localStorage.setItem("affiliate", JSON.stringify(result.data.affiliate))
+          }
+        }
+
+        // Track evento de login
+        if (typeof window !== "undefined" && window.gtag) {
+          window.gtag("event", "login", {
+            method: "email",
+            user_role: result.data?.user?.role || "affiliate",
+          })
+        }
+
+        // Redirecionar baseado no role
+        const userRole = result.data?.user?.role
+        if (userRole === "admin") {
+          router.push("/admin/dashboard")
+        } else if (userRole === "affiliate") {
+          router.push("/afiliado/dashboard")
+        } else {
+          router.push("/membro/dashboard")
+        }
+      } else {
+        console.log("❌ [FRONTEND] Erro no login:", result.error)
+        setError(result.error || "Erro no login")
+      }
+    } catch (error) {
+      console.error("❌ [FRONTEND] Erro inesperado:", error)
+      setError("Erro inesperado. Tente novamente.")
+    } finally {
+      setIsSubmitting(false)
     }
-
-    router.push("/afiliado/dashboard")
-    setIsLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-zinc-50 to-green-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Users className="w-8 h-8 text-green-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-zinc-800 mb-2">Área do Afiliado</h1>
-          <p className="text-zinc-600">Acesse seu dashboard de vendas</p>
-        </div>
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold text-green-800">Login de Afiliado</CardTitle>
+          <p className="text-zinc-600">Acesse sua conta de afiliado</p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="seu@email.com"
+                disabled={isSubmitting}
+              />
+            </div>
 
-        {/* Login Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center">Login</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="affiliateId">ID do Afiliado</Label>
-                <Input
-                  id="affiliateId"
-                  required
-                  value={affiliateId}
-                  onChange={(e) => setAffiliateId(e.target.value)}
-                  placeholder="Ex: AGD123456"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="senha">Senha</Label>
+            <div>
+              <Label htmlFor="senha">Senha</Label>
+              <div className="relative">
                 <Input
                   id="senha"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
+                  value={formData.senha}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, senha: e.target.value }))}
                   placeholder="Sua senha"
+                  disabled={isSubmitting}
                 />
-                <p className="text-xs text-zinc-500 mt-1">Use 123456 ou os últimos 6 dígitos do seu CPF</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isSubmitting}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
+            </div>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Entrar
+                </>
               )}
+            </Button>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Entrando..." : "Entrar"}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center space-y-2">
-              <Button variant="link" onClick={() => router.push("/afiliado/cadastro")} className="text-sm">
-                Não tem conta? Cadastre-se aqui
-              </Button>
-              <br />
-              <Button variant="link" onClick={() => router.push("/")} className="text-sm">
-                ← Voltar ao site
-              </Button>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-zinc-600">
+                Não tem conta?{" "}
+                <Link href="/afiliado/cadastro" className="text-green-600 hover:underline">
+                  Cadastre-se aqui
+                </Link>
+              </p>
+              <p className="text-sm text-zinc-600">
+                <Link href="/" className="text-green-600 hover:underline">
+                  ← Voltar ao início
+                </Link>
+              </p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Demo Info */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-2 text-center">🎯 Demo - Como testar:</h3>
-            <div className="text-sm text-zinc-600 space-y-1">
-              <p>1. Cadastre-se primeiro em "Não tem conta?"</p>
-              <p>2. Use o ID gerado + senha 123456</p>
-              <p>3. Ou teste com: ID "AGD123456" + senha "123456"</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

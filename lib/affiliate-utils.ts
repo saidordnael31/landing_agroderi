@@ -1,107 +1,161 @@
-// Utilitários para gerenciar afiliados
+/**
+ * Utilitários centrais do sistema de afiliados Agroderi
+ * (cookies / localStorage, geração de código, métricas, etc.)
+ */
+
+/* ------------------------------------------------------------------ */
+/* -------------------------- Cookies & Storage ---------------------- */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Recupera o ID do afiliado salvo (cookie ou localStorage).
+ * — Expira em 48 h caso esteja apenas no localStorage.
+ */
 export function getAffiliateId(): string | null {
   if (typeof window === "undefined") return null
 
-  // Primeiro tenta pegar do cookie
-  const cookies = document.cookie.split(";")
-  const affiliateCookie = cookies.find((cookie) => cookie.trim().startsWith("id_afiliado="))
+  // 1. Tenta cookie
+  const cookieEntry = document.cookie.split(";").find((c) => c.trim().startsWith("id_afiliado="))
 
-  if (affiliateCookie) {
-    return affiliateCookie.split("=")[1]
+  if (cookieEntry) {
+    return cookieEntry.split("=")[1]
   }
 
-  // Se não encontrar no cookie, tenta no localStorage
-  const localStorageId = localStorage.getItem("agd_affiliate_id")
-  const timestamp = localStorage.getItem("agd_affiliate_timestamp")
+  // 2. Tenta localStorage
+  const lsId = localStorage.getItem("agd_affiliate_id")
+  const ts = localStorage.getItem("agd_affiliate_timestamp")
 
-  if (localStorageId && timestamp) {
+  if (lsId && ts) {
+    const storedAt = Number(ts)
     const now = Date.now()
-    const storedTime = Number.parseInt(timestamp)
-    const fortyEightHours = 48 * 60 * 60 * 1000 // 48 horas em ms
+    const ttl = 48 * 60 * 60 * 1000 // 48 h
 
-    // Verifica se ainda está dentro do prazo
-    if (now - storedTime < fortyEightHours) {
-      return localStorageId
-    } else {
-      // Remove dados expirados
-      localStorage.removeItem("agd_affiliate_id")
-      localStorage.removeItem("agd_affiliate_timestamp")
+    if (now - storedAt < ttl) {
+      return lsId
     }
+
+    // Expirado → limpa
+    localStorage.removeItem("agd_affiliate_id")
+    localStorage.removeItem("agd_affiliate_timestamp")
   }
 
   return null
 }
 
-export function setAffiliateId(affiliateId: string): void {
+/**
+ * Armazena o ID de afiliado em cookie + localStorage (backup).
+ */
+export function setAffiliateId(id: string): void {
   if (typeof window === "undefined") return
 
-  // Define cookie
-  const maxAge = 60 * 60 * 48 // 48 horas
-  document.cookie = `id_afiliado=${affiliateId}; path=/; max-age=${maxAge}; SameSite=Lax`
+  const maxAge = 48 * 60 * 60 // 48 h em s
+  document.cookie = `id_afiliado=${id}; path=/; max-age=${maxAge}; SameSite=Lax`
 
-  // Define localStorage como backup
-  localStorage.setItem("agd_affiliate_id", affiliateId)
+  localStorage.setItem("agd_affiliate_id", id)
   localStorage.setItem("agd_affiliate_timestamp", Date.now().toString())
 }
 
+/** Limpa o ID de afiliado salvo. */
 export function clearAffiliateId(): void {
   if (typeof window === "undefined") return
 
-  // Remove cookie
   document.cookie = "id_afiliado=; path=/; max-age=0"
-
-  // Remove localStorage
   localStorage.removeItem("agd_affiliate_id")
   localStorage.removeItem("agd_affiliate_timestamp")
 }
 
-export function trackAffiliateConversion(affiliateId: string, conversionType: string, value?: number): void {
-  if (typeof window !== "undefined" && window.gtag) {
-    window.gtag("event", "affiliate_conversion", {
-      affiliate_id: affiliateId,
-      conversion_type: conversionType,
-      value: value || 0,
-      currency: "BRL",
-    })
-  }
+/* ------------------------------------------------------------------ */
+/* ------------------------- Geração de Código ----------------------- */
+/* ------------------------------------------------------------------ */
 
-  // Aqui você pode adicionar chamada para sua API de tracking
-  // fetch('/api/affiliate/track', { ... })
+/**
+ * Gera um código único de afiliado.
+ * Formato: <slug-do-nome><4 dígitos timestamp><3 caracteres aleatórios>
+ */
+export function generateAffiliateCode(name?: string): string {
+  const slug =
+    name
+      ?.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 3)
+      .toUpperCase() || "AGD"
+
+  const timestamp = Date.now().toString().slice(-4)
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase()
+
+  return `${slug}${timestamp}${random}`
 }
 
-// Adicione estas funções ao final do arquivo
+/** Valida formatação do código. */
+export function isValidAffiliateId(id: string): boolean {
+  return /^[A-Z0-9]{10}$/.test(id)
+}
 
+/* ------------------------------------------------------------------ */
+/* ------------------------- Métricas & Links ------------------------ */
+/* ------------------------------------------------------------------ */
+
+/** Placeholder de estatísticas – em produção seria fetch na API. */
 export function getAffiliateStats(affiliateId: string) {
-  // Simula busca de estatísticas do afiliado
-  // Em produção, isso seria uma chamada para sua API
   return {
-    totalReferrals: Math.floor(Math.random() * 100) + 10,
-    totalEarnings: Math.floor(Math.random() * 5000) + 500,
+    totalReferrals: Math.floor(Math.random() * 150) + 10,
+    totalEarnings: Math.floor(Math.random() * 6000) + 500,
     conversionRate: (Math.random() * 10 + 2).toFixed(1),
-    tier: affiliateId.length > 6 ? "Premium" : "Standard",
+    tier: affiliateId.length > 6 ? "gold" : "bronze",
   }
 }
 
+/** Gera link de rastreio para páginas internas. */
 export function generateAffiliateLink(affiliateId: string, page = "ofertas"): string {
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com"
-  return `${baseUrl}/rastreio?utm_id=${affiliateId}&utm_source=affiliate&utm_campaign=referral&redirect=${page}`
+  const base = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com"
+  return `${base}/rastreio?utm_id=${affiliateId}&utm_source=affiliate&utm_campaign=referral&redirect=${page}`
 }
 
-export function isValidAffiliateId(affiliateId: string): boolean {
-  // Valida formato do ID do afiliado
-  return /^[A-Za-z0-9]{4,20}$/.test(affiliateId)
-}
-
+/** Calcula bônus extra por plano + tier. */
 export function getAffiliateBonus(affiliateId: string, planType: string): number {
   const stats = getAffiliateStats(affiliateId)
 
-  // Bônus baseado no tier do afiliado
-  const baseBonuses = {
-    plano1: 2,
-    plano2: 3,
-    plano3: 5,
-  }
+  const base =
+    {
+      plano1: 2,
+      plano2: 3,
+      plano3: 5,
+    }[planType as keyof typeof base] ?? 2
 
-  const tierMultiplier = stats.tier === "Premium" ? 1.5 : 1
-  return Math.floor((baseBonuses[planType] || 2) * tierMultiplier)
+  const multiplier = stats.tier === "gold" ? 1.5 : 1
+  return Math.floor(base * multiplier)
+}
+
+/* ------------------------------------------------------------------ */
+/* ----------------------- Helpers de Formatação --------------------- */
+/* ------------------------------------------------------------------ */
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value)
+}
+
+export function formatPercentage(val: number): string {
+  return `${val.toFixed(1)}%`
+}
+
+/* ----------------------- Comissão & Tier -------------------------- */
+
+export function calculateCommission(amount: number, tier = "bronze"): number {
+  const rates = { bronze: 0.05, silver: 0.08, gold: 0.12, platinum: 0.15 }
+  const r = rates[tier as keyof typeof rates] ?? rates.bronze
+  return amount * r
+}
+
+export function getTierInfo(tier: string) {
+  const tiers = {
+    bronze: { name: "Bronze", rate: 0.05, color: "text-orange-600", bg: "bg-orange-50" },
+    silver: { name: "Prata", rate: 0.08, color: "text-gray-600", bg: "bg-gray-50" },
+    gold: { name: "Ouro", rate: 0.12, color: "text-yellow-600", bg: "bg-yellow-50" },
+    platinum: { name: "Platina", rate: 0.15, color: "text-purple-600", bg: "bg-purple-50" },
+  }
+  return tiers[tier as keyof typeof tiers] ?? tiers.bronze
 }

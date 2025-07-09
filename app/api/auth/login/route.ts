@@ -1,67 +1,144 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase-client"
+import { createClient } from "@supabase/supabase-js"
+import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 
-export async function POST(request: NextRequest) {
-  try {
-    const { email, password } = await request.json()
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email e senha são obrigatórios" }, { status: 400 })
+export async function POST(request: NextRequest) {
+  console.log("🔐 [LOGIN] Iniciando login...")
+
+  try {
+    // Parse do body
+    const body = await request.json()
+    const { email, senha } = body
+
+    console.log("📧 [LOGIN] Email:", email)
+
+    // Validações
+    if (!email || !senha) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Email e senha são obrigatórios",
+          code: "MISSING_CREDENTIALS",
+        },
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    // Buscar usuário no banco
-    const { data: user, error } = await supabase
+    // Buscar usuário
+    const { data: user, error: userError } = await supabaseAdmin
       .from("users")
-      .select("*")
+      .select("id, name, email, password_hash, role, status")
       .eq("email", email.toLowerCase())
-      .eq("status", "active")
       .single()
 
-    if (error || !user) {
-      return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 })
+    if (userError || !user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Email ou senha incorretos",
+          code: "INVALID_CREDENTIALS",
+        },
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    // Para demo, aceitar senhas simples baseadas no role
-    const validPasswords: Record<string, string[]> = {
-      admin: ["admin123", "123456"],
-      viewer: ["viewer123", "123456"],
-      affiliate: ["afiliado123", "123456"],
-      buyer: ["cliente123", "123456"],
+    // Verificar senha
+    const passwordValid = await bcrypt.compare(senha, user.password_hash)
+
+    if (!passwordValid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Email ou senha incorretos",
+          code: "INVALID_CREDENTIALS",
+        },
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
-    const userPasswords = validPasswords[user.role] || ["123456"]
-    if (!userPasswords.includes(password)) {
-      return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 })
+    // Buscar dados do afiliado se for afiliado
+    let affiliateData = null
+    if (user.role === "affiliate") {
+      const { data: affiliate } = await supabaseAdmin
+        .from("affiliates")
+        .select("id, affiliate_code, tier, status, total_sales, total_commission")
+        .eq("user_id", user.id)
+        .single()
+
+      affiliateData = affiliate
     }
 
-    // Gerar JWT token
+    // Gerar JWT
+    const jwtSecret = process.env.JWT_SECRET || "fallback-secret"
     const token = jwt.sign(
       {
         userId: user.id,
         email: user.email,
         role: user.role,
-        name: user.name,
+        affiliateId: affiliateData?.id || null,
+        affiliateCode: affiliateData?.affiliate_code || null,
       },
-      process.env.JWT_SECRET || "agroderi-secret-key-2024",
+      jwtSecret,
       { expiresIn: "7d" },
     )
 
-    // Atualizar último login
-    await supabase.from("users").update({ updated_at: new Date().toISOString() }).eq("id", user.id)
+    console.log("✅ [LOGIN] Sucesso para:", email)
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Login realizado com sucesso!",
+        data: {
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+          affiliate: affiliateData,
+          token: token,
+        },
       },
-      token,
-    })
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   } catch (error) {
-    console.error("Erro no login:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    console.error("💥 [LOGIN] Erro:", error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Erro interno do servidor",
+        code: "INTERNAL_ERROR",
+      },
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   }
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { message: "API de login funcionando" },
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  )
 }
