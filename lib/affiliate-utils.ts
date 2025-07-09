@@ -1,161 +1,191 @@
-/**
- * Utilitários centrais do sistema de afiliados Agroderi
- * (cookies / localStorage, geração de código, métricas, etc.)
- */
-
-/* ------------------------------------------------------------------ */
-/* -------------------------- Cookies & Storage ---------------------- */
-/* ------------------------------------------------------------------ */
+"use client"
 
 /**
- * Recupera o ID do afiliado salvo (cookie ou localStorage).
- * — Expira em 48 h caso esteja apenas no localStorage.
+ * Utilidades de afiliados usadas em todo o front-end.
+ * Centraliza geração de códigos, link, métricas, formatação etc.
  */
+
+import { createBrowserClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase" // ajuste caso seu tipo esteja em outro lugar
+
+/* -------------------------------------------------------------------------- */
+/*                              CONFIG SUPABASE                              */
+/* -------------------------------------------------------------------------- */
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Isto será capturado apenas em desenvolvimento; em produção as envs estão definidas.
+  // eslint-disable-next-line no-console
+  console.warn("[affiliate-utils] Variáveis NEXT_PUBLIC_SUPABASE_URL ou _ANON_KEY ausentes.")
+}
+
+// Client só é criado no browser.
+const supabase = createBrowserClient<Database>(supabaseUrl ?? "", supabaseAnonKey ?? "")
+
+/* -------------------------------------------------------------------------- */
+/*                        LOCAL-STORAGE HELPERS (ID)                         */
+/* -------------------------------------------------------------------------- */
+
+const LS_KEY = "agd_affiliate_id"
+
 export function getAffiliateId(): string | null {
   if (typeof window === "undefined") return null
-
-  // 1. Tenta cookie
-  const cookieEntry = document.cookie.split(";").find((c) => c.trim().startsWith("id_afiliado="))
-
-  if (cookieEntry) {
-    return cookieEntry.split("=")[1]
-  }
-
-  // 2. Tenta localStorage
-  const lsId = localStorage.getItem("agd_affiliate_id")
-  const ts = localStorage.getItem("agd_affiliate_timestamp")
-
-  if (lsId && ts) {
-    const storedAt = Number(ts)
-    const now = Date.now()
-    const ttl = 48 * 60 * 60 * 1000 // 48 h
-
-    if (now - storedAt < ttl) {
-      return lsId
-    }
-
-    // Expirado → limpa
-    localStorage.removeItem("agd_affiliate_id")
-    localStorage.removeItem("agd_affiliate_timestamp")
-  }
-
-  return null
+  return localStorage.getItem(LS_KEY)
 }
 
-/**
- * Armazena o ID de afiliado em cookie + localStorage (backup).
- */
-export function setAffiliateId(id: string): void {
+export function setAffiliateId(code: string): void {
   if (typeof window === "undefined") return
-
-  const maxAge = 48 * 60 * 60 // 48 h em s
-  document.cookie = `id_afiliado=${id}; path=/; max-age=${maxAge}; SameSite=Lax`
-
-  localStorage.setItem("agd_affiliate_id", id)
-  localStorage.setItem("agd_affiliate_timestamp", Date.now().toString())
+  localStorage.setItem(LS_KEY, code)
 }
 
-/** Limpa o ID de afiliado salvo. */
 export function clearAffiliateId(): void {
   if (typeof window === "undefined") return
-
-  document.cookie = "id_afiliado=; path=/; max-age=0"
-  localStorage.removeItem("agd_affiliate_id")
-  localStorage.removeItem("agd_affiliate_timestamp")
+  localStorage.removeItem(LS_KEY)
 }
 
-/* ------------------------------------------------------------------ */
-/* ------------------------- Geração de Código ----------------------- */
-/* ------------------------------------------------------------------ */
-
-/**
- * Gera um código único de afiliado.
- * Formato: <slug-do-nome><4 dígitos timestamp><3 caracteres aleatórios>
- */
-export function generateAffiliateCode(name?: string): string {
-  const slug =
-    name
-      ?.trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")
-      .slice(0, 3)
-      .toUpperCase() || "AGD"
-
-  const timestamp = Date.now().toString().slice(-4)
-  const random = Math.random().toString(36).substring(2, 5).toUpperCase()
-
-  return `${slug}${timestamp}${random}`
+export function isValidAffiliateId(code: string | null | undefined): boolean {
+  if (!code) return false
+  // 5–10 caracteres alfanuméricos
+  return /^[a-zA-Z0-9]{5,10}$/.test(code)
 }
 
-/** Valida formatação do código. */
-export function isValidAffiliateId(id: string): boolean {
-  return /^[A-Z0-9]{10}$/.test(id)
-}
+/* -------------------------------------------------------------------------- */
+/*                       GERAÇÃO/FORMATAÇÃO DE CÓDIGO                         */
+/* -------------------------------------------------------------------------- */
 
-/* ------------------------------------------------------------------ */
-/* ------------------------- Métricas & Links ------------------------ */
-/* ------------------------------------------------------------------ */
-
-/** Placeholder de estatísticas – em produção seria fetch na API. */
-export function getAffiliateStats(affiliateId: string) {
-  return {
-    totalReferrals: Math.floor(Math.random() * 150) + 10,
-    totalEarnings: Math.floor(Math.random() * 6000) + 500,
-    conversionRate: (Math.random() * 10 + 2).toFixed(1),
-    tier: affiliateId.length > 6 ? "gold" : "bronze",
+export function generateAffiliateCode(length = 8): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+  let out = ""
+  for (let i = 0; i < length; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)]
   }
+  return out
 }
 
-/** Gera link de rastreio para páginas internas. */
-export function generateAffiliateLink(affiliateId: string, page = "ofertas"): string {
-  const base = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com"
-  return `${base}/rastreio?utm_id=${affiliateId}&utm_source=affiliate&utm_campaign=referral&redirect=${page}`
+export function generateAffiliateLink(code: string): string {
+  const base = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com" // fallback para SSR
+  return `${base}/?ref=${code}`
 }
 
-/** Calcula bônus extra por plano + tier. */
-export function getAffiliateBonus(affiliateId: string, planType: string): number {
-  const stats = getAffiliateStats(affiliateId)
+/* -------------------------------------------------------------------------- */
+/*                              FORMATAÇÕES UX                               */
+/* -------------------------------------------------------------------------- */
 
-  const base =
-    {
-      plano1: 2,
-      plano2: 3,
-      plano3: 5,
-    }[planType as keyof typeof base] ?? 2
-
-  const multiplier = stats.tier === "gold" ? 1.5 : 1
-  return Math.floor(base * multiplier)
-}
-
-/* ------------------------------------------------------------------ */
-/* ----------------------- Helpers de Formatação --------------------- */
-/* ------------------------------------------------------------------ */
-
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
+export function formatCurrency(value: number, locale = "pt-BR"): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "BRL",
+    minimumFractionDigits: 2,
   }).format(value)
 }
 
-export function formatPercentage(val: number): string {
-  return `${val.toFixed(1)}%`
+export function formatPercentage(value: number, locale = "pt-BR"): string {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 
-/* ----------------------- Comissão & Tier -------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                                 TIERS                                     */
+/* -------------------------------------------------------------------------- */
 
-export function calculateCommission(amount: number, tier = "bronze"): number {
-  const rates = { bronze: 0.05, silver: 0.08, gold: 0.12, platinum: 0.15 }
-  const r = rates[tier as keyof typeof rates] ?? rates.bronze
-  return amount * r
+const tiers = [
+  { name: "Bronze", minSales: 0, commission: 0.05 },
+  { name: "Prata", minSales: 50, commission: 0.07 },
+  { name: "Ouro", minSales: 200, commission: 0.1 },
+  { name: "Platina", minSales: 500, commission: 0.12 },
+] as const
+
+export type TierInfo = (typeof tiers)[number]
+
+export function getTierInfo(totalSales: number): TierInfo {
+  // Encontra o maior tier cujo minSales seja <= totalSales
+  return [...tiers].reverse().find((t) => totalSales >= t.minSales) || tiers[0]
 }
 
-export function getTierInfo(tier: string) {
-  const tiers = {
-    bronze: { name: "Bronze", rate: 0.05, color: "text-orange-600", bg: "bg-orange-50" },
-    silver: { name: "Prata", rate: 0.08, color: "text-gray-600", bg: "bg-gray-50" },
-    gold: { name: "Ouro", rate: 0.12, color: "text-yellow-600", bg: "bg-yellow-50" },
-    platinum: { name: "Platina", rate: 0.15, color: "text-purple-600", bg: "bg-purple-50" },
+/* -------------------------------------------------------------------------- */
+/*                         MÉTRICAS & COMISSÕES (DB)                          */
+/* -------------------------------------------------------------------------- */
+
+export interface AffiliateStats {
+  totalSales: number
+  totalRevenue: number
+  totalCommission: number
+  thisMonthSales: number
+  thisMonthCommission: number
+  pendingCommission: number
+}
+
+export async function getAffiliateStats(affiliateId: string): Promise<AffiliateStats> {
+  // Exemplo de estrutura no Supabase:
+  // - Tabela "sales" com colunas: id, affiliate_id, amount, commission, paid (bool), created_at
+  // Ajuste para o seu schema real.
+  const { data, error } = await supabase
+    .from("sales")
+    .select("amount, commission, paid, created_at")
+    .eq("affiliate_id", affiliateId)
+
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error("[affiliate-utils] getAffiliateStats error", error)
+    throw new Error("Falha ao buscar métricas")
   }
-  return tiers[tier as keyof typeof tiers] ?? tiers.bronze
+
+  let totalSales = 0
+  let totalRevenue = 0
+  let totalCommission = 0
+  let thisMonthSales = 0
+  let thisMonthCommission = 0
+  let pendingCommission = 0
+
+  const now = new Date()
+  const month = now.getMonth()
+  const year = now.getFullYear()
+
+  data?.forEach((sale) => {
+    totalSales += 1
+    totalRevenue += sale.amount
+    totalCommission += sale.commission
+
+    const saleDate = new Date(sale.created_at)
+    if (saleDate.getMonth() === month && saleDate.getFullYear() === year) {
+      thisMonthSales += 1
+      thisMonthCommission += sale.commission
+    }
+
+    if (!sale.paid) {
+      pendingCommission += sale.commission
+    }
+  })
+
+  return {
+    totalSales,
+    totalRevenue,
+    totalCommission,
+    thisMonthSales,
+    thisMonthCommission,
+    pendingCommission,
+  }
+}
+
+/**
+ * Calcula bônus extra baseado em metas específicas.
+ * Exemplo: +R$200 se ultrapassar 100 vendas no mês.
+ */
+export function getAffiliateBonus(stats: AffiliateStats): number {
+  if (stats.thisMonthSales >= 100) return 200
+  if (stats.thisMonthSales >= 50) return 50
+  return 0
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          CÁLCULO DE COMISSÃO EXTRA                         */
+/* -------------------------------------------------------------------------- */
+
+export function calculateCommission(saleAmount: number, affiliateId: string, totalSalesForAffiliate: number): number {
+  const tier = getTierInfo(totalSalesForAffiliate)
+  return saleAmount * tier.commission
 }
