@@ -5,7 +5,7 @@
  * Todas as funções exigidas pelo projeto estão declaradas aqui.
  */
 
-import { createBrowserClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 
 /* -------------------------------------------------------------------------- */
 /*  Tipagens                                                                  */
@@ -41,9 +41,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export const supabase =
-  typeof window !== "undefined" && supabaseUrl && supabaseAnonKey
-    ? createBrowserClient(supabaseUrl, supabaseAnonKey)
-    : null
+  typeof window !== "undefined" && supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
 
 /* -------------------------------------------------------------------------- */
 /*  Geração e validação de código de afiliado                                 */
@@ -132,9 +130,30 @@ export function generateAffiliateLink(affiliateId: string): string {
   return url.toString()
 }
 
-export function getAffiliateBonus(totalSales: number): number {
-  // Exemplo de bônus simples: R$100 a cada 100 vendas
-  return Math.floor(totalSales / 100) * 100
+export function getAffiliateBonus(affiliateId: string, planType: string): number {
+  // Bônus simples baseado em tier + plano
+  const stats = getAffiliateStatsSync(affiliateId) // helper síncrono mock
+
+  // Base de bônus por plano
+  const planBase: Record<string, number> = { plano1: 2, plano2: 3, plano3: 5 }
+  const base = planBase[planType] ?? 2
+
+  // Multiplicador por tier
+  const tierMult: Record<string, number> = { Bronze: 1, Prata: 1.2, Ouro: 1.5, Platina: 2 }
+  const multiplier = tierMult[stats.tier] ?? 1
+
+  return Math.floor(base * multiplier)
+}
+
+/**
+ * Versão síncrona MOCK de getAffiliateStats só para cálculo rápido de bônus.
+ * Em produção, troque por cache ou rpc apropriado.
+ */
+function getAffiliateStatsSync(affiliateId: string) {
+  const length = affiliateId.length
+  return {
+    tier: length > 10 ? "Platina" : length > 8 ? "Ouro" : length > 6 ? "Prata" : "Bronze",
+  }
 }
 
 /* -------------------------------------------------------------------------- */
