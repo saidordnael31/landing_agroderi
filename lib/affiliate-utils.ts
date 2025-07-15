@@ -2,17 +2,17 @@
 
 import { createClient } from "@supabase/supabase-js"
 
-// Cliente Supabase para o browser
+// ================================================================
+// Configuração do cliente Supabase (browser-side)
+// ================================================================
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-let supabase: any = null
-if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey)
-}
+export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
 
-// ==================== TIPOS E INTERFACES ====================
-
+// ================================================================
+// Tipos e interfaces
+// ================================================================
 export interface AffiliateStats {
   totalSales: number
   totalCommission: number
@@ -33,8 +33,9 @@ export interface TierInfo {
   benefits: string[]
 }
 
-// ==================== FUNÇÕES DE ARMAZENAMENTO LOCAL ====================
-
+// ================================================================
+// Armazenamento local
+// ================================================================
 export function getAffiliateId(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem("affiliateId")
@@ -50,130 +51,115 @@ export function clearAffiliateId(): void {
   localStorage.removeItem("affiliateId")
 }
 
-// ==================== VALIDAÇÃO ====================
-
+// ================================================================
+// Validação
+// ================================================================
 export function isValidAffiliateId(id: string): boolean {
   if (!id || typeof id !== "string") return false
-  // Código deve ter entre 6-10 caracteres, apenas letras e números
+  // 6-10 caracteres, apenas letras/números
   return /^[A-Z0-9]{6,10}$/.test(id)
 }
 
-// ==================== GERAÇÃO DE CÓDIGO ÚNICO ====================
+// ================================================================
+// Geração e verificação de códigos
+// ================================================================
+const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-export function generateAffiliateCode(name: string): string {
-  if (!name || typeof name !== "string") {
-    return generateRandomCode()
-  }
-
-  // Limpar nome e pegar primeiras 3 letras
-  const cleanName = name.replace(/[^a-zA-Z]/g, "").toUpperCase()
-  const namePrefix = cleanName.substring(0, 3).padEnd(3, "X")
-
-  // Gerar timestamp único (últimos 3 dígitos + random)
-  const timestamp = Date.now().toString()
-  const timeDigits = timestamp.slice(-3)
-  const randomDigit = Math.floor(Math.random() * 10)
-
-  return `${namePrefix}${timeDigits}${randomDigit}`
+function baseGenerateCode(prefix = "AGD"): string {
+  // 3 dígitos do timestamp + 2 chars aleatórios
+  const time = Date.now().toString().slice(-3)
+  const rand = Array.from({ length: 2 }, () => randomChars.charAt(Math.floor(Math.random() * randomChars.length))).join(
+    "",
+  )
+  return `${prefix}${time}${rand}`
 }
 
-function generateRandomCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  let code = "AGD"
-
-  // Adicionar timestamp para garantir unicidade
-  const timestamp = Date.now().toString().slice(-4)
-
-  // Adicionar 2 caracteres aleatórios
-  for (let i = 0; i < 2; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-
-  return code + timestamp.slice(-3)
+/**
+ * Gera um código de afiliado de forma síncrona.
+ * Mantém compatibilidade com partes antigas do código que ainda importam
+ * `generateAffiliateCode` como export nomeado.
+ *
+ * Exemplo:
+ *  generateAffiliateCode("João") -> "JOA123AB"
+ */
+export function generateAffiliateCode(name = ""): string {
+  // Limpa e garante pelo menos 3 letras
+  const clean = name
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .padEnd(3, "X")
+    .substring(0, 3)
+  return baseGenerateCode(clean)
 }
 
-// Função para verificar se código já existe (para uso futuro)
 export async function isAffiliateCodeUnique(code: string): Promise<boolean> {
-  if (!supabase || !code) return false
-
+  if (!supabase) return true // Assume único sem Supabase
   try {
     const { data, error } = await supabase.from("affiliates").select("id").eq("affiliate_code", code).single()
-
-    // Se não encontrou nenhum registro, o código é único
-    return error?.code === "PGRST116" // No rows found
+    // Se erro de "row not found" (PGRST116) ou data indefinido => é único
+    return !data
   } catch {
     return false
   }
 }
 
-// Função para gerar código único garantido
-export async function generateUniqueAffiliateCode(name: string, maxAttempts = 5): Promise<string> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const code = generateAffiliateCode(name)
+export async function generateUniqueAffiliateCode(name = "", maxAttempts = 5): Promise<string> {
+  const cleanName = name
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .padEnd(3, "X")
+    .substring(0, 3)
 
-    if (await isAffiliateCodeUnique(code)) {
-      console.log(`✅ Código único gerado na tentativa ${attempt}: ${code}`)
-      return code
-    }
-
-    console.log(`⚠️ Código ${code} já existe, tentativa ${attempt}/${maxAttempts}`)
-
-    // Aguardar um pouco antes da próxima tentativa
-    await new Promise((resolve) => setTimeout(resolve, 100))
+  for (let i = 0; i < maxAttempts; i++) {
+    const code = baseGenerateCode(cleanName)
+    if (await isAffiliateCodeUnique(code)) return code
   }
-
-  // Se todas as tentativas falharam, gerar um código com timestamp mais específico
-  const fallbackCode = `AGD${Date.now().toString().slice(-6)}`
-  console.log(`🔄 Usando código fallback: ${fallbackCode}`)
-  return fallbackCode
+  // Fallback com timestamp completo
+  return `AGD${Date.now().toString().slice(-6)}`
 }
 
-// ==================== LINKS DE AFILIADO ====================
-
+// ================================================================
+// Links de afiliado
+// ================================================================
 export function generateAffiliateLink(affiliateCode: string, page = "/"): string {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://agroderi.com"
   const url = new URL(page, baseUrl)
-
   url.searchParams.set("ref", affiliateCode)
   url.searchParams.set("utm_source", "affiliate")
   url.searchParams.set("utm_medium", "referral")
   url.searchParams.set("utm_campaign", affiliateCode)
-
   return url.toString()
 }
 
-// ==================== CÁLCULOS DE COMISSÃO ====================
+// ================================================================
+// Regras de comissão / bônus
+// ================================================================
+const tierRates = {
+  bronze: 0.05,
+  silver: 0.07,
+  gold: 0.1,
+  platinum: 0.15,
+  standard: 0.05,
+  premium: 0.1,
+} as const
 
 export function calculateCommission(amount: number, tier = "bronze"): number {
-  const tierRates = {
-    bronze: 0.05, // 5%
-    silver: 0.07, // 7%
-    gold: 0.1, // 10%
-    platinum: 0.15, // 15%
-    standard: 0.05, // 5% (compatibilidade)
-    premium: 0.1, // 10% (compatibilidade)
-  }
-
-  const rate = tierRates[tier as keyof typeof tierRates] || 0.05
+  const rate = tierRates[tier as keyof typeof tierRates] ?? 0.05
   return amount * rate
 }
 
 export function getAffiliateBonus(affiliateId: string, planType: string): number {
-  // Valores de bônus por plano
   const bonuses = {
-    starter: 25, // R$ 25
-    intermediate: 75, // R$ 75
-    premium: 150, // R$ 150
-    plano1: 50, // R$ 50
-    plano2: 100, // R$ 100
-    plano3: 200, // R$ 200
-  }
-
-  return bonuses[planType as keyof typeof bonuses] || 0
+    starter: 25,
+    intermediate: 75,
+    premium: 150,
+  } as const
+  return bonuses[planType as keyof typeof bonuses] ?? 0
 }
 
-// ==================== INFORMAÇÕES DE TIER ====================
-
+// ================================================================
+// Informações de tier
+// ================================================================
 export function getTierInfo(tier: string): TierInfo {
   const tiers: Record<string, TierInfo> = {
     bronze: {
@@ -219,9 +205,8 @@ export function getTierInfo(tier: string): TierInfo {
       benefits: ["10% de comissão", "Suporte premium"],
     },
   }
-
   return (
-    tiers[tier] || {
+    tiers[tier] ?? {
       name: "Bronze",
       color: "#CD7F32",
       rate: 0.05,
@@ -231,8 +216,9 @@ export function getTierInfo(tier: string): TierInfo {
   )
 }
 
-// ==================== FORMATAÇÃO ====================
-
+// ================================================================
+// Helpers de formatação
+// ================================================================
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -248,94 +234,80 @@ export function formatPercentage(value: number): string {
   }).format(value)
 }
 
-// ==================== ESTATÍSTICAS DO AFILIADO ====================
-
+// ================================================================
+// Estatísticas do afiliado
+// ================================================================
 export async function getAffiliateStats(affiliateId: string): Promise<AffiliateStats> {
   if (!supabase) {
-    console.warn("Supabase não configurado, retornando dados mock")
-    return getAffiliateStatsSync(affiliateId)
+    console.warn("Supabase não configurado—retornando mock.")
+    return getAffiliateStatsMock()
   }
 
   try {
-    // Buscar dados do afiliado
-    const { data: affiliate, error: affiliateError } = await supabase
+    // Info do afiliado
+    const { data: affiliate } = await supabase
       .from("affiliates")
       .select("total_sales, total_commission, tier, commission_rate")
       .eq("id", affiliateId)
       .single()
 
-    if (affiliateError || !affiliate) {
-      console.error("Erro ao buscar afiliado:", affiliateError)
-      return getAffiliateStatsSync(affiliateId)
-    }
-
-    // Buscar investimentos do afiliado
-    const { data: investments, error: investmentsError } = await supabase
+    // Investimentos
+    const { data: investments } = await supabase
       .from("investments")
-      .select("amount, status, created_at")
+      .select("amount, created_at")
       .eq("affiliate_id", affiliateId)
 
-    if (investmentsError) {
-      console.error("Erro ao buscar investimentos:", investmentsError)
-    }
-
-    // Buscar comissões pendentes
-    const { data: pendingCommissions, error: commissionsError } = await supabase
+    // Comissões pendentes
+    const { data: pending } = await supabase
       .from("commissions")
       .select("amount")
       .eq("affiliate_id", affiliateId)
       .eq("status", "pending")
 
-    if (commissionsError) {
-      console.error("Erro ao buscar comissões:", commissionsError)
-    }
-
-    // Calcular métricas
-    const currentMonth = new Date().getMonth()
-    const currentYear = new Date().getFullYear()
+    const month = new Date().getMonth()
+    const year = new Date().getFullYear()
 
     const monthlyInvestments =
       investments?.filter((inv) => {
-        const invDate = new Date(inv.created_at)
-        return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear
-      }) || []
+        const d = new Date(inv.created_at)
+        return d.getMonth() === month && d.getFullYear() === year
+      }) ?? []
 
-    const monthlySales = monthlyInvestments.reduce((sum, inv) => sum + inv.amount, 0)
-    const monthlyCommission = monthlySales * (affiliate.commission_rate || 0.05)
+    const monthlySales = monthlyInvestments.reduce((sum, i) => sum + i.amount, 0)
 
-    const pendingCommission = pendingCommissions?.reduce((sum, comm) => sum + comm.amount, 0) || 0
+    const commissionRate = affiliate?.commission_rate ?? 0.05
+    const monthlyCommission = monthlySales * commissionRate
+    const pendingCommission = pending?.reduce((sum, p) => sum + p.amount, 0) ?? 0
 
-    // Simular cliques (em produção, isso viria de uma tabela de tracking)
-    const totalClicks = Math.floor(affiliate.total_sales * 0.1) || 100
-    const conversionRate = totalClicks > 0 ? (investments?.length || 0) / totalClicks : 0
+    const totalClicks = Math.floor((affiliate?.total_sales ?? 0) * 0.1) || 100
+    const conversionRate = totalClicks > 0 ? (investments?.length ?? 0) / totalClicks : 0
 
     return {
-      totalSales: affiliate.total_sales || 0,
-      totalCommission: affiliate.total_commission || 0,
+      totalSales: affiliate?.total_sales ?? 0,
+      totalCommission: affiliate?.total_commission ?? 0,
       totalClicks,
       conversionRate,
       monthlySales,
       monthlyCommission,
       pendingCommission,
-      tier: affiliate.tier || "bronze",
-      commissionRate: affiliate.commission_rate || 0.05,
+      tier: affiliate?.tier ?? "bronze",
+      commissionRate,
     }
-  } catch (error) {
-    console.error("Erro ao buscar estatísticas:", error)
-    return getAffiliateStatsSync(affiliateId)
+  } catch (err) {
+    console.error("Falha em getAffiliateStats:", err)
+    return getAffiliateStatsMock()
   }
 }
 
-// Função síncrona para dados mock (fallback)
-function getAffiliateStatsSync(affiliateId: string): AffiliateStats {
+function getAffiliateStatsMock(): AffiliateStats {
   return {
-    totalSales: 15000,
-    totalCommission: 750,
-    totalClicks: 1500,
+    totalSales: 10000,
+    totalCommission: 500,
+    totalClicks: 1000,
     conversionRate: 0.05,
-    monthlySales: 3000,
-    monthlyCommission: 150,
-    pendingCommission: 300,
+    monthlySales: 2000,
+    monthlyCommission: 100,
+    pendingCommission: 200,
     tier: "bronze",
     commissionRate: 0.05,
   }

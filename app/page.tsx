@@ -166,12 +166,7 @@ export default function AGDLandingPage() {
       utm_source: utmSource,
     })
 
-    // Se for para ofertas/pagamento, redirecionar para AgroDeri
-    if (path.includes("/ofertas") || path.includes("payment")) {
-      window.open("https://www.agroderi.in", "_blank")
-    } else {
-      router.push(path)
-    }
+    router.push(path)
   }
 
   return (
@@ -228,7 +223,7 @@ export default function AGDLandingPage() {
             className="text-lg px-8 py-4 bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
             onClick={() => {
               trackEvent("hero_cta_click", { language: language })
-              window.open("https://www.agroderi.in", "_blank")
+              handleNavigation("/ofertas", "hero_cta")
             }}
           >
             {t[language].cta}
@@ -361,7 +356,7 @@ export default function AGDLandingPage() {
                 className="text-lg px-8 py-4 bg-white text-green-700 hover:bg-zinc-50 shadow-lg hover:shadow-xl transition-all duration-300"
                 onClick={() => {
                   trackEvent("final_cta_click", { language: language })
-                  window.open("https://www.agroderi.in", "_blank")
+                  handleNavigation("/ofertas", "final_cta")
                 }}
               >
                 {t[language].cta}
