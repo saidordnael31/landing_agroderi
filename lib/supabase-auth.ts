@@ -2,7 +2,7 @@
 
 import { supabase } from "./supabase-browser"
 import bcrypt from "bcryptjs"
-import { generateAffiliateCode } from "./affiliate-utils"
+import { generateUniqueAffiliateCode } from "./affiliate-utils"
 
 export interface RegisterAffiliateData {
   nome: string
@@ -69,9 +69,10 @@ export async function registerAffiliate(data: RegisterAffiliateData): Promise<Au
     console.log("🔐 [SUPABASE-AUTH] Gerando hash da senha...")
     const passwordHash = await bcrypt.hash(data.senha, 12)
 
-    // 4. Gerar código do afiliado
-    const affiliateCode = generateAffiliateCode(data.nome)
-    console.log("🔢 [SUPABASE-AUTH] Código gerado:", affiliateCode)
+    // 4. Gerar código único do afiliado
+    console.log("🔢 [SUPABASE-AUTH] Gerando código único do afiliado...")
+    const affiliateCode = await generateUniqueAffiliateCode(data.nome)
+    console.log("✅ [SUPABASE-AUTH] Código único gerado:", affiliateCode)
 
     // 5. Criar usuário primeiro
     console.log("👤 [SUPABASE-AUTH] Criando usuário...")
@@ -100,7 +101,7 @@ export async function registerAffiliate(data: RegisterAffiliateData): Promise<Au
 
     console.log("✅ [SUPABASE-AUTH] Usuário criado:", newUser.id)
 
-    // 6. Criar registro de afiliado
+    // 6. Criar registro de afiliado com código único
     console.log("🤝 [SUPABASE-AUTH] Criando afiliado...")
     const { data: newAffiliate, error: affiliateError } = await supabase
       .from("affiliates")
@@ -112,7 +113,7 @@ export async function registerAffiliate(data: RegisterAffiliateData): Promise<Au
         experience: data.experiencia || null,
         channels: data.canais || [],
         motivation: data.motivacao || null,
-        tier: "bronze",
+        tier: "bronze", // Valor que deve estar na constraint
         status: "active",
         total_sales: 0,
         total_commission: 0,
@@ -124,13 +125,24 @@ export async function registerAffiliate(data: RegisterAffiliateData): Promise<Au
 
     if (affiliateError || !newAffiliate) {
       console.error("❌ [SUPABASE-AUTH] Erro ao criar afiliado:", affiliateError)
+      console.error("❌ [SUPABASE-AUTH] Detalhes do erro:", JSON.stringify(affiliateError, null, 2))
 
       // Rollback - deletar usuário criado
       await supabase.from("users").delete().eq("id", newUser.id)
 
+      // Verificar se é erro de código duplicado
+      if (affiliateError?.code === "23505" && affiliateError?.message?.includes("affiliate_code")) {
+        return {
+          success: false,
+          error: "Erro interno: código de afiliado duplicado. Tente novamente.",
+          code: "DUPLICATE_CODE",
+          data: affiliateError,
+        }
+      }
+
       return {
         success: false,
-        error: "Erro ao criar registro de afiliado",
+        error: `Erro ao criar registro de afiliado: ${affiliateError?.message || "Erro desconhecido"}`,
         code: "AFFILIATE_ERROR",
         data: affiliateError,
       }
