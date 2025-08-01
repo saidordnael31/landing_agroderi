@@ -6,9 +6,9 @@ const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, proces
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log("📥 Dados do investimento:", body)
+    console.log("📥 [INVESTMENT] Dados do investimento:", body)
 
-    const { email, nome, telefone, planId, amount, affiliateCode, utmSource, utmCampaign } = body
+    const { email, nome, telefone, planId, amount, affiliateCode, utmSource, utmCampaign, utmMedium } = body
 
     // Validações
     if (!email || !nome || !telefone || !planId || !amount) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (createError) {
-        console.error("Erro ao criar usuário:", createError)
+        console.error("❌ [INVESTMENT] Erro ao criar usuário:", createError)
         return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
       }
       user = newUser
@@ -45,15 +45,24 @@ export async function POST(request: NextRequest) {
 
     // Buscar afiliado se código fornecido
     let affiliateId = null
+    let affiliateData = null
+
     if (affiliateCode) {
-      const { data: affiliate } = await supabaseAdmin
+      console.log("🔍 [INVESTMENT] Buscando afiliado:", affiliateCode)
+
+      const { data: affiliate, error: affiliateError } = await supabaseAdmin
         .from("affiliates")
-        .select("id")
+        .select("id, affiliate_code, current_tier, commission_rate_direct")
         .eq("affiliate_code", affiliateCode.toUpperCase())
+        .eq("status", "active")
         .single()
 
-      if (affiliate) {
+      if (affiliate && !affiliateError) {
         affiliateId = affiliate.id
+        affiliateData = affiliate
+        console.log("✅ [INVESTMENT] Afiliado encontrado:", affiliate.affiliate_code)
+      } else {
+        console.warn("⚠️ [INVESTMENT] Afiliado não encontrado:", affiliateCode)
       }
     }
 
@@ -86,7 +95,7 @@ export async function POST(request: NextRequest) {
         bonus: bonus,
         affiliate_bonus: affiliateBonus,
         affiliate_id: affiliateId,
-        status: "pending",
+        status: "pending", // Será confirmado após pagamento
         payment_method: "pix",
         utm_source: utmSource,
         utm_campaign: utmCampaign,
@@ -96,8 +105,43 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (investmentError) {
-      console.error("Erro ao criar investimento:", investmentError)
+      console.error("❌ [INVESTMENT] Erro ao criar investimento:", investmentError)
       return NextResponse.json({ error: "Erro ao criar investimento" }, { status: 500 })
+    }
+
+    console.log("✅ [INVESTMENT] Investimento criado:", investment.id)
+
+    // Se tem afiliado, processar comissões automaticamente
+    // Em produção, isso seria feito via webhook do gateway de pagamento
+    if (affiliateId && affiliateData) {
+      console.log("💰 [INVESTMENT] Processando comissões...")
+
+      // Simular confirmação de pagamento após 2 segundos
+      setTimeout(async () => {
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/sales/process`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                investmentId: investment.id,
+                affiliateCode: affiliateData.affiliate_code,
+                saleAmount: amount,
+                customerId: user.id,
+                utmSource,
+                utmMedium,
+                utmCampaign,
+              }),
+            },
+          )
+
+          const result = await response.json()
+          console.log("🎉 [INVESTMENT] Comissões processadas:", result)
+        } catch (error) {
+          console.error("❌ [INVESTMENT] Erro ao processar comissões:", error)
+        }
+      }, 2000)
     }
 
     return NextResponse.json({
@@ -105,10 +149,12 @@ export async function POST(request: NextRequest) {
       investmentId: investment.id,
       amount: investment.amount,
       bonus: investment.bonus,
+      affiliateCode: affiliateData?.affiliate_code,
+      commissionRate: affiliateData?.commission_rate_direct,
       message: "Investimento criado com sucesso!",
     })
   } catch (error) {
-    console.error("Erro na API de investimentos:", error)
+    console.error("💥 [INVESTMENT] Erro na API:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

@@ -25,6 +25,8 @@ import {
   Mail,
   Calendar,
   CreditCard,
+  Target,
+  Award,
 } from "lucide-react"
 import {
   getAffiliateStats,
@@ -50,6 +52,14 @@ export default function DashboardAfiliado() {
 
   useEffect(() => {
     loadDashboardData()
+
+    // Refresh automático a cada 30 segundos
+    const interval = setInterval(() => {
+      console.log("🔄 [DASHBOARD] Atualizando dados automaticamente...")
+      loadDashboardData()
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [])
 
   const loadDashboardData = async () => {
@@ -75,11 +85,11 @@ export default function DashboardAfiliado() {
       console.log("🤝 [DASHBOARD] Dados do afiliado:", parsedAffiliate)
 
       if (parsedAffiliate?.id) {
-        // Carregar dados do dashboard
+        // Carregar dados do dashboard com dados reais
         const [statsData, salesData, paymentsData, profileData] = await Promise.all([
           getAffiliateStats(parsedAffiliate.id),
-          getAffiliateSales(parsedAffiliate.id, 5),
-          getAffiliatePayments(parsedAffiliate.id, 5),
+          getAffiliateSales(parsedAffiliate.id, 10),
+          getAffiliatePayments(parsedAffiliate.id, 10),
           getAffiliateProfile(parsedUser.id),
         ])
 
@@ -99,7 +109,18 @@ export default function DashboardAfiliado() {
 
   const generateLink = (page = "ofertas") => {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://agroderi.com"
-    return `${baseUrl}/rastreio?utm_id=${affiliate?.affiliate_code}&utm_source=affiliate&redirect=${page}`
+    const affiliateCode = affiliate?.affiliate_code || profile?.affiliate_code
+
+    if (!affiliateCode) {
+      console.warn("⚠️ [LINKS] Código de afiliado não encontrado")
+      return `${baseUrl}/${page}`
+    }
+
+    // Gerar link de rastreamento real
+    const trackingUrl = `${baseUrl}/rastreio?utm_id=${affiliateCode}&utm_source=affiliate&utm_medium=referral&utm_campaign=${affiliateCode}&redirect=${page}`
+
+    console.log("🔗 [LINKS] Link gerado:", trackingUrl)
+    return trackingUrl
   }
 
   const handleCopyLink = (page: string) => {
@@ -131,7 +152,20 @@ export default function DashboardAfiliado() {
     return null
   }
 
-  const tierInfo = getTierInfo(profile?.tier || "bronze")
+  const tierInfo = getTierInfo(profile?.current_tier || "bronze")
+  const affiliateCode = affiliate?.affiliate_code || profile?.affiliate_code
+
+  // Calcular progresso para próximo tier
+  const currentVolume = stats?.totalVolume || 0
+  const nextTierThresholds = {
+    bronze: 5000, // Iniciante
+    iniciante: 10000, // Avançado
+    avancado: 25000, // Expert
+    expert: 50000, // Embaixador
+  }
+  const currentTier = profile?.current_tier || "bronze"
+  const nextThreshold = nextTierThresholds[currentTier as keyof typeof nextTierThresholds]
+  const progressPercentage = nextThreshold ? Math.min((currentVolume / nextThreshold) * 100, 100) : 100
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-zinc-50 to-green-50">
@@ -142,18 +176,10 @@ export default function DashboardAfiliado() {
             <div>
               <h1 className="text-2xl font-bold text-zinc-800">Dashboard do Afiliado</h1>
               <p className="text-zinc-600">
-                Olá, {user.name} • Código: {affiliate?.affiliate_code || profile?.affiliate_code}
+                Olá, {user.name} • Código: <strong>{affiliateCode}</strong>
               </p>
             </div>
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/afiliado/materiais")}
-                className="border-blue-600 text-blue-600 hover:bg-blue-50"
-              >
-                Materiais
-              </Button>
               <Badge variant="outline" className={`border-2 ${tierInfo.color} ${tierInfo.bgColor}`}>
                 {tierInfo.name} • {formatPercentage(tierInfo.rate * 100)}
               </Badge>
@@ -167,7 +193,7 @@ export default function DashboardAfiliado() {
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-5 gap-4 mb-8">
+        <div className="grid md:grid-cols-6 gap-4 mb-8">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
@@ -227,111 +253,52 @@ export default function DashboardAfiliado() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Target className="w-6 h-6 text-indigo-600" />
+                <div>
+                  <p className="text-xs text-zinc-600">Volume Total</p>
+                  <p className="text-xl font-bold">{formatCurrency(currentVolume)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Tabs defaultValue="perfil" className="space-y-6">
+        {/* Progresso do Tier */}
+        {nextThreshold && (
+          <Card className="mb-8">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Award className="w-5 h-5 text-yellow-600" />
+                  <h3 className="text-lg font-semibold">Progresso para Próximo Nível</h3>
+                </div>
+                <Badge variant="outline">{formatPercentage(progressPercentage)}</Badge>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                <div
+                  className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${progressPercentage}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-600">
+                Faltam {formatCurrency(nextThreshold - currentVolume)} para o próximo nível
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        <Tabs defaultValue="links" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="perfil">Perfil</TabsTrigger>
             <TabsTrigger value="links">Meus Links</TabsTrigger>
             <TabsTrigger value="vendas">Vendas</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
+            <TabsTrigger value="perfil">Perfil</TabsTrigger>
             <TabsTrigger value="materiais">Materiais</TabsTrigger>
           </TabsList>
-
-          {/* Perfil Tab */}
-          <TabsContent value="perfil" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Dados Pessoais */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <User className="w-5 h-5" />
-                    <span>Dados Pessoais</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <User className="w-4 h-4 text-zinc-500" />
-                    <div>
-                      <p className="text-sm text-zinc-600">Nome</p>
-                      <p className="font-semibold">{user.name}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    <Mail className="w-4 h-4 text-zinc-500" />
-                    <div>
-                      <p className="text-sm text-zinc-600">Email</p>
-                      <p className="font-semibold">{user.email}</p>
-                    </div>
-                  </div>
-
-                  {profile?.phone && (
-                    <div className="flex items-center space-x-3">
-                      <Phone className="w-4 h-4 text-zinc-500" />
-                      <div>
-                        <p className="text-sm text-zinc-600">Telefone</p>
-                        <p className="font-semibold">{profile.phone}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {profile?.cpf && (
-                    <div className="flex items-center space-x-3">
-                      <CreditCard className="w-4 h-4 text-zinc-500" />
-                      <div>
-                        <p className="text-sm text-zinc-600">CPF</p>
-                        <p className="font-semibold">{profile.cpf}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center space-x-3">
-                    <Calendar className="w-4 h-4 text-zinc-500" />
-                    <div>
-                      <p className="text-sm text-zinc-600">Membro desde</p>
-                      <p className="font-semibold">
-                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("pt-BR") : "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Métricas do Mês */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <BarChart3 className="w-5 h-5" />
-                    <span>Métricas do Mês</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-600">Vendas este mês</span>
-                    <span className="font-bold text-green-600">{stats?.currentMonthSales || 0}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-600">Comissão este mês</span>
-                    <span className="font-bold text-green-600">
-                      {formatCurrency(stats?.currentMonthCommission || 0)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-600">Taxa de comissão</span>
-                    <span className="font-bold text-purple-600">{formatPercentage(tierInfo.rate * 100)}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-600">Nível atual</span>
-                    <Badge className={`${tierInfo.color} ${tierInfo.bgColor}`}>{tierInfo.name}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
           {/* Links Tab */}
           <TabsContent value="links" className="space-y-6">
@@ -341,7 +308,10 @@ export default function DashboardAfiliado() {
                   <Share2 className="w-5 h-5" />
                   <span>Seus Links de Afiliado</span>
                 </CardTitle>
-                <p className="text-zinc-600">Use estes links para divulgar e ganhar comissões</p>
+                <p className="text-zinc-600">
+                  Use estes links para divulgar e ganhar <strong>7% de comissão direta</strong> +{" "}
+                  <strong>3% de comissão de liderança</strong>
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {[
@@ -525,6 +495,101 @@ export default function DashboardAfiliado() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Perfil Tab */}
+          <TabsContent value="perfil" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Dados Pessoais */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <User className="w-5 h-5" />
+                    <span>Dados Pessoais</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <User className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Nome</p>
+                      <p className="font-semibold">{user.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <Mail className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Email</p>
+                      <p className="font-semibold">{user.email}</p>
+                    </div>
+                  </div>
+
+                  {profile?.phone && (
+                    <div className="flex items-center space-x-3">
+                      <Phone className="w-4 h-4 text-zinc-500" />
+                      <div>
+                        <p className="text-sm text-zinc-600">Telefone</p>
+                        <p className="font-semibold">{profile.phone}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {profile?.cpf && (
+                    <div className="flex items-center space-x-3">
+                      <CreditCard className="w-4 h-4 text-zinc-500" />
+                      <div>
+                        <p className="text-sm text-zinc-600">CPF</p>
+                        <p className="font-semibold">{profile.cpf}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="w-4 h-4 text-zinc-500" />
+                    <div>
+                      <p className="text-sm text-zinc-600">Membro desde</p>
+                      <p className="font-semibold">
+                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("pt-BR") : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Métricas do Mês */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <BarChart3 className="w-5 h-5" />
+                    <span>Métricas do Mês</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Vendas este mês</span>
+                    <span className="font-bold text-green-600">{stats?.currentMonthSales || 0}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Comissão este mês</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(stats?.currentMonthCommission || 0)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Taxa de comissão</span>
+                    <span className="font-bold text-purple-600">{formatPercentage(tierInfo.rate * 100)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-600">Nível atual</span>
+                    <Badge className={`${tierInfo.color} ${tierInfo.bgColor}`}>{tierInfo.name}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Materiais Tab */}

@@ -2,117 +2,92 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Users, TrendingUp } from "lucide-react"
-import { setAffiliateId, getAffiliateStats, isValidAffiliateId, getAffiliateBonus } from "@/lib/affiliate-utils"
+import { trackAffiliateClick } from "@/lib/affiliate-dashboard"
 
-export default function RastreioAfiliado() {
+export default function RastreioPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [isRedirecting, setIsRedirecting] = useState(false)
-  const [affiliateInfo, setAffiliateInfo] = useState(null)
+  const [status, setStatus] = useState("Processando...")
 
   useEffect(() => {
-    const utm_id = searchParams.get("utm_id")
-    const ref = searchParams.get("ref")
-    const redirect = searchParams.get("redirect") || "ofertas"
-    const affiliateId = utm_id || ref
+    const processTracking = async () => {
+      try {
+        // Obter parâmetros da URL
+        const utmId = searchParams.get("utm_id") // Código do afiliado
+        const utmSource = searchParams.get("utm_source")
+        const redirect = searchParams.get("redirect") || "ofertas"
 
-    if (affiliateId) {
-      // Valida o ID do afiliado
-      if (!isValidAffiliateId(affiliateId)) {
-        console.warn("ID de afiliado inválido:", affiliateId)
-        router.replace(`/${redirect}`)
-        return
-      }
-
-      setIsRedirecting(true)
-
-      // Usa a função utilitária para definir o ID
-      setAffiliateId(affiliateId)
-
-      // Busca informações do afiliado
-      const stats = getAffiliateStats(affiliateId)
-      setAffiliateInfo({
-        id: affiliateId,
-        name: `Afiliado ${affiliateId}`,
-        bonus: `${getAffiliateBonus(affiliateId, "plano2")}% extra`,
-        tier: stats.tier,
-        totalReferrals: stats.totalReferrals,
-      })
-
-      // Track do evento
-      if (typeof window !== "undefined" && window.gtag) {
-        window.gtag("event", "affiliate_tracking", {
-          affiliate_id: affiliateId,
-          affiliate_tier: stats.tier,
-          page_location: window.location.href,
+        console.log("🔗 [RASTREIO] Parâmetros recebidos:", {
+          utmId,
+          utmSource,
+          redirect,
         })
-      }
 
-      // Redireciona com delay para melhor UX
-      setTimeout(() => {
-        router.replace(`/${redirect}?utm_id=${affiliateId}&ref=affiliate`)
-      }, 2500)
-    } else {
-      // Sem ID de afiliado
-      setTimeout(() => {
-        router.replace(`/${redirect}`)
-      }, 1000)
+        if (utmId && utmSource === "affiliate") {
+          setStatus("Registrando visita...")
+
+          // Registrar clique no banco de dados
+          const success = await trackAffiliateClick(utmId, redirect)
+
+          if (success) {
+            console.log("✅ [RASTREIO] Clique registrado com sucesso")
+            setStatus("Redirecionando...")
+
+            // Salvar dados de tracking no localStorage
+            const trackingData = {
+              affiliateCode: utmId,
+              source: utmSource,
+              timestamp: new Date().toISOString(),
+              destination: redirect,
+            }
+
+            localStorage.setItem("affiliate_tracking", JSON.stringify(trackingData))
+            console.log("💾 [RASTREIO] Dados salvos no localStorage:", trackingData)
+          } else {
+            console.warn("⚠️ [RASTREIO] Falha ao registrar clique")
+            setStatus("Erro no rastreamento, redirecionando...")
+          }
+        } else {
+          console.log("ℹ️ [RASTREIO] Sem parâmetros de afiliado, redirecionando diretamente")
+          setStatus("Redirecionando...")
+        }
+
+        // Aguardar um pouco para mostrar o status
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+
+        // Redirecionar para a página de destino
+        const destinationMap: { [key: string]: string } = {
+          ofertas: "/ofertas",
+          missao: "/missao",
+          "": "/",
+        }
+
+        const destination = destinationMap[redirect] || "/ofertas"
+        console.log("🎯 [RASTREIO] Redirecionando para:", destination)
+
+        router.push(destination)
+      } catch (error) {
+        console.error("💥 [RASTREIO] Erro no processamento:", error)
+        setStatus("Erro, redirecionando...")
+
+        // Redirecionar mesmo com erro
+        setTimeout(() => {
+          router.push("/ofertas")
+        }, 2000)
+      }
     }
+
+    processTracking()
   }, [searchParams, router])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-zinc-50 to-green-50 flex items-center justify-center px-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
-          </div>
-
-          <h1 className="text-2xl font-bold text-zinc-800 mb-4">Processando seu acesso...</h1>
-
-          {affiliateInfo ? (
-            <div className="space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <Users className="w-5 h-5 text-green-600" />
-                  <span className="font-semibold text-green-800">Indicação Especial</span>
-                </div>
-                <p className="text-sm text-green-700">Você foi indicado por: {affiliateInfo.name}</p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <TrendingUp className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-blue-800">Bônus Exclusivo</span>
-                </div>
-                <p className="text-sm text-blue-700">Você receberá {affiliateInfo.bonus} de bônus adicional!</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-zinc-600">Redirecionando para as melhores ofertas...</p>
-              <div className="flex justify-center space-x-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
-                <div
-                  className="w-2 h-2 bg-green-500 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.1s" }}
-                ></div>
-                <div
-                  className="w-2 h-2 bg-green-500 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                ></div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6 text-xs text-zinc-500">
-            <p>Aguarde alguns segundos...</p>
-            {affiliateInfo && <p className="mt-1">ID: {affiliateInfo.id}</p>}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+        <h1 className="text-2xl font-bold text-zinc-800 mb-2">Agroderi</h1>
+        <p className="text-zinc-600 mb-4">{status}</p>
+        <div className="text-sm text-zinc-500">Você será redirecionado automaticamente...</div>
+      </div>
     </div>
   )
 }

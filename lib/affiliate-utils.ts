@@ -27,10 +27,10 @@ export interface AffiliateStats {
 
 export interface TierInfo {
   name: string
-  color: string
   rate: number
+  color: string
+  bgColor: string
   minSales: number
-  benefits: string[]
 }
 
 // ================================================================
@@ -82,14 +82,15 @@ function baseGenerateCode(prefix = "AGD"): string {
  * Exemplo:
  *  generateAffiliateCode("João") -> "JOA123AB"
  */
-export function generateAffiliateCode(name = ""): string {
-  // Limpa e garante pelo menos 3 letras
-  const clean = name
-    .replace(/[^a-zA-Z]/g, "")
-    .toUpperCase()
-    .padEnd(3, "X")
-    .substring(0, 3)
-  return baseGenerateCode(clean)
+export function generateAffiliateCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  let result = "AGD"
+
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+
+  return result
 }
 
 export async function isAffiliateCodeUnique(code: string): Promise<boolean> {
@@ -103,15 +104,9 @@ export async function isAffiliateCodeUnique(code: string): Promise<boolean> {
   }
 }
 
-export async function generateUniqueAffiliateCode(name = "", maxAttempts = 5): Promise<string> {
-  const cleanName = name
-    .replace(/[^a-zA-Z]/g, "")
-    .toUpperCase()
-    .padEnd(3, "X")
-    .substring(0, 3)
-
+export async function generateUniqueAffiliateCode(maxAttempts = 5): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
-    const code = baseGenerateCode(cleanName)
+    const code = generateAffiliateCode()
     if (await isAffiliateCodeUnique(code)) return code
   }
   // Fallback com timestamp completo
@@ -138,14 +133,13 @@ const tierRates = {
   bronze: 0.05,
   silver: 0.07,
   gold: 0.1,
-  platinum: 0.15,
-  standard: 0.05,
-  premium: 0.1,
+  platinum: 0.12,
+  diamond: 0.15,
 } as const
 
-export function calculateCommission(amount: number, tier = "bronze"): number {
-  const rate = tierRates[tier as keyof typeof tierRates] ?? 0.05
-  return amount * rate
+export function calculateCommission(saleValue: number, tier = "bronze"): number {
+  const tierInfo = getTierInfo(tier)
+  return saleValue * tierInfo.rate
 }
 
 export function getAffiliateBonus(affiliateId: string, planType: string): number {
@@ -161,59 +155,45 @@ export function getAffiliateBonus(affiliateId: string, planType: string): number
 // Informações de tier
 // ================================================================
 export function getTierInfo(tier: string): TierInfo {
-  const tiers: Record<string, TierInfo> = {
+  const tiers: { [key: string]: TierInfo } = {
     bronze: {
       name: "Bronze",
-      color: "#CD7F32",
-      rate: 0.05,
+      rate: 0.05, // 5%
+      color: "text-amber-700",
+      bgColor: "bg-amber-50",
       minSales: 0,
-      benefits: ["5% de comissão", "Suporte básico", "Materiais padrão"],
     },
     silver: {
       name: "Prata",
-      color: "#C0C0C0",
-      rate: 0.07,
-      minSales: 10000,
-      benefits: ["7% de comissão", "Suporte prioritário", "Materiais exclusivos"],
+      rate: 0.07, // 7%
+      color: "text-gray-700",
+      bgColor: "bg-gray-50",
+      minSales: 10,
     },
     gold: {
       name: "Ouro",
-      color: "#FFD700",
-      rate: 0.1,
-      minSales: 50000,
-      benefits: ["10% de comissão", "Suporte VIP", "Treinamentos exclusivos"],
+      rate: 0.1, // 10%
+      color: "text-yellow-700",
+      bgColor: "bg-yellow-50",
+      minSales: 25,
     },
     platinum: {
       name: "Platina",
-      color: "#E5E4E2",
-      rate: 0.15,
-      minSales: 100000,
-      benefits: ["15% de comissão", "Gerente dedicado", "Eventos exclusivos"],
+      rate: 0.12, // 12%
+      color: "text-purple-700",
+      bgColor: "bg-purple-50",
+      minSales: 50,
     },
-    standard: {
-      name: "Padrão",
-      color: "#6B7280",
-      rate: 0.05,
-      minSales: 0,
-      benefits: ["5% de comissão", "Suporte básico"],
-    },
-    premium: {
-      name: "Premium",
-      color: "#8B5CF6",
-      rate: 0.1,
-      minSales: 25000,
-      benefits: ["10% de comissão", "Suporte premium"],
+    diamond: {
+      name: "Diamante",
+      rate: 0.15, // 15%
+      color: "text-blue-700",
+      bgColor: "bg-blue-50",
+      minSales: 100,
     },
   }
-  return (
-    tiers[tier] ?? {
-      name: "Bronze",
-      color: "#CD7F32",
-      rate: 0.05,
-      minSales: 0,
-      benefits: ["5% de comissão"],
-    }
-  )
+
+  return tiers[tier] || tiers.bronze
 }
 
 // ================================================================
@@ -227,15 +207,11 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatPercentage(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "percent",
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(value)
+  return `${value.toFixed(1)}%`
 }
 
 // ================================================================
-// Estatísticas do afiliado
+// Estatísticas do afiliado - VERSÃO COM BANCO REAL
 // ================================================================
 export async function getAffiliateStats(affiliateId: string): Promise<AffiliateStats> {
   if (!supabase) {
@@ -244,58 +220,120 @@ export async function getAffiliateStats(affiliateId: string): Promise<AffiliateS
   }
 
   try {
-    // Info do afiliado
-    const { data: affiliate } = await supabase
+    console.log("📊 [STATS] Buscando estatísticas para afiliado:", affiliateId)
+
+    // 1. Buscar dados básicos do afiliado
+    const { data: affiliate, error: affiliateError } = await supabase
       .from("affiliates")
-      .select("total_sales, total_commission, tier, commission_rate")
+      .select("total_sales, total_commission, tier, commission_rate, total_clicks")
       .eq("id", affiliateId)
       .single()
 
-    // Investimentos
-    const { data: investments } = await supabase
+    if (affiliateError) {
+      console.error("❌ [STATS] Erro ao buscar afiliado:", affiliateError)
+      return getAffiliateStatsMock()
+    }
+
+    // 2. Buscar investimentos relacionados ao afiliado
+    const { data: investments, error: investmentsError } = await supabase
       .from("investments")
-      .select("amount, created_at")
+      .select("amount, created_at, status")
       .eq("affiliate_id", affiliateId)
 
-    // Comissões pendentes
-    const { data: pending } = await supabase
+    if (investmentsError) {
+      console.error("❌ [STATS] Erro ao buscar investimentos:", investmentsError)
+    }
+
+    // 3. Buscar comissões pendentes
+    const { data: commissions, error: commissionsError } = await supabase
       .from("commissions")
-      .select("amount")
+      .select("amount, status")
       .eq("affiliate_id", affiliateId)
-      .eq("status", "pending")
 
-    const month = new Date().getMonth()
-    const year = new Date().getFullYear()
+    if (commissionsError) {
+      console.error("❌ [STATS] Erro ao buscar comissões:", commissionsError)
+    }
+
+    // 4. Calcular métricas do mês atual
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
 
     const monthlyInvestments =
       investments?.filter((inv) => {
-        const d = new Date(inv.created_at)
-        return d.getMonth() === month && d.getFullYear() === year
-      }) ?? []
+        const invDate = new Date(inv.created_at)
+        return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear
+      }) || []
 
-    const monthlySales = monthlyInvestments.reduce((sum, i) => sum + i.amount, 0)
+    const monthlySales = monthlyInvestments.reduce((sum, inv) => sum + inv.amount, 0)
+    const monthlyCommission = monthlySales * (affiliate.commission_rate || 0.05)
 
-    const commissionRate = affiliate?.commission_rate ?? 0.05
-    const monthlyCommission = monthlySales * commissionRate
-    const pendingCommission = pending?.reduce((sum, p) => sum + p.amount, 0) ?? 0
+    // 5. Calcular comissões pendentes
+    const pendingCommission =
+      commissions?.filter((c) => c.status === "pending").reduce((sum, comm) => sum + comm.amount, 0) || 0
 
-    const totalClicks = Math.floor((affiliate?.total_sales ?? 0) * 0.1) || 100
-    const conversionRate = totalClicks > 0 ? (investments?.length ?? 0) / totalClicks : 0
+    // 6. Calcular taxa de conversão
+    const totalClicks = affiliate.total_clicks || 0
+    const totalSales = investments?.length || 0
+    const conversionRate = totalClicks > 0 ? (totalSales / totalClicks) * 100 : 0
 
-    return {
-      totalSales: affiliate?.total_sales ?? 0,
-      totalCommission: affiliate?.total_commission ?? 0,
+    const stats: AffiliateStats = {
+      totalSales: affiliate.total_sales || 0,
+      totalCommission: affiliate.total_commission || 0,
       totalClicks,
       conversionRate,
       monthlySales,
       monthlyCommission,
       pendingCommission,
-      tier: affiliate?.tier ?? "bronze",
-      commissionRate,
+      tier: affiliate.tier || "bronze",
+      commissionRate: affiliate.commission_rate || 0.05,
     }
+
+    console.log("✅ [STATS] Estatísticas calculadas:", stats)
+    return stats
   } catch (err) {
-    console.error("Falha em getAffiliateStats:", err)
+    console.error("💥 [STATS] Erro ao buscar estatísticas:", err)
     return getAffiliateStatsMock()
+  }
+}
+
+// Função para registrar clique no link de afiliado
+export async function trackAffiliateClick(affiliateCode: string, page: string): Promise<void> {
+  if (!supabase) return
+
+  try {
+    // Buscar ID do afiliado pelo código
+    const { data: affiliate } = await supabase
+      .from("affiliates")
+      .select("id")
+      .eq("affiliate_code", affiliateCode)
+      .single()
+
+    if (affiliate) {
+      // Incrementar contador de cliques
+      await supabase
+        .from("affiliates")
+        .update({
+          total_clicks: supabase.raw("total_clicks + 1"),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", affiliate.id)
+
+      // Registrar evento de clique
+      await supabase.from("event_logs").insert({
+        event_name: "affiliate_click",
+        event_data: {
+          affiliate_code: affiliateCode,
+          page,
+          timestamp: new Date().toISOString(),
+        },
+        created_at: new Date().toISOString(),
+      })
+
+      console.log("📈 [TRACKING] Clique registrado para:", affiliateCode)
+    }
+  } catch (error) {
+    console.error("❌ [TRACKING] Erro ao registrar clique:", error)
   }
 }
 
@@ -310,5 +348,29 @@ function getAffiliateStatsMock(): AffiliateStats {
     pendingCommission: 200,
     tier: "bronze",
     commissionRate: 0.05,
+  }
+}
+
+// ================================================================
+// Funções adicionais
+// ================================================================
+export function getNextTier(
+  currentTier: string,
+  currentSales: number,
+): { nextTier: string; salesNeeded: number } | null {
+  const tiers = ["bronze", "silver", "gold", "platinum", "diamond"]
+  const currentIndex = tiers.indexOf(currentTier)
+
+  if (currentIndex === -1 || currentIndex === tiers.length - 1) {
+    return null // Já está no tier mais alto
+  }
+
+  const nextTier = tiers[currentIndex + 1]
+  const nextTierInfo = getTierInfo(nextTier)
+  const salesNeeded = Math.max(0, nextTierInfo.minSales - currentSales)
+
+  return {
+    nextTier: nextTierInfo.name,
+    salesNeeded,
   }
 }

@@ -36,7 +36,14 @@ export async function getAffiliateStats(affiliateId: string): Promise<AffiliateS
     // Buscar dados básicos do afiliado
     const { data: affiliate, error: affiliateError } = await supabase
       .from("affiliates")
-      .select("total_sales, total_commission, total_clicks")
+      .select(`
+        id,
+        total_sales,
+        total_commission,
+        tier,
+        commission_rate,
+        affiliate_code
+      `)
       .eq("id", affiliateId)
       .single()
 
@@ -45,47 +52,72 @@ export async function getAffiliateStats(affiliateId: string): Promise<AffiliateS
       throw affiliateError
     }
 
-    // Buscar vendas do mês atual
+    console.log("✅ [DASHBOARD] Dados do afiliado:", affiliate)
+
+    // Contar cliques reais na tabela de tracking
+    const { count: clickCount, error: clicksError } = await supabase
+      .from("affiliate_clicks")
+      .select("*", { count: "exact", head: true })
+      .eq("affiliate_id", affiliateId)
+
+    if (clicksError) {
+      console.error("❌ [DASHBOARD] Erro ao contar cliques:", clicksError)
+    }
+
+    // Buscar investimentos do afiliado
+    const { data: investments, error: investmentsError } = await supabase
+      .from("investments")
+      .select("amount, created_at, status")
+      .eq("affiliate_id", affiliateId)
+
+    if (investmentsError) {
+      console.error("❌ [DASHBOARD] Erro ao buscar investimentos:", investmentsError)
+    }
+
+    console.log("💰 [DASHBOARD] Investimentos encontrados:", investments?.length || 0)
+
+    // Buscar comissões
+    const { data: commissions, error: commissionsError } = await supabase
+      .from("commissions")
+      .select("amount, status, created_at")
+      .eq("affiliate_id", affiliateId)
+
+    if (commissionsError) {
+      console.error("❌ [DASHBOARD] Erro ao buscar comissões:", commissionsError)
+    }
+
+    console.log("💳 [DASHBOARD] Comissões encontradas:", commissions?.length || 0)
+
+    // Calcular métricas do mês atual
     const currentMonth = new Date().toISOString().substring(0, 7) // YYYY-MM
-    const { data: monthlySales, error: monthlyError } = await supabase
-      .from("sales")
-      .select("sale_value, commission")
-      .eq("affiliate_id", affiliateId)
-      .gte("created_at", `${currentMonth}-01`)
-      .lt("created_at", `${currentMonth}-32`)
+    const monthlyInvestments = investments?.filter((inv) => inv.created_at.startsWith(currentMonth)) || []
 
-    if (monthlyError) {
-      console.error("❌ [DASHBOARD] Erro ao buscar vendas mensais:", monthlyError)
-    }
+    const currentMonthSales = monthlyInvestments.length
+    const currentMonthCommission = monthlyInvestments.reduce(
+      (sum, inv) => sum + inv.amount * (affiliate.commission_rate || 0.05),
+      0,
+    )
 
-    // Buscar comissões pendentes
-    const { data: pendingSales, error: pendingError } = await supabase
-      .from("sales")
-      .select("commission")
-      .eq("affiliate_id", affiliateId)
-      .eq("status", "pending")
+    // Comissões pendentes
+    const pendingCommission =
+      commissions?.filter((c) => c.status === "pending").reduce((sum, comm) => sum + comm.amount, 0) || 0
 
-    if (pendingError) {
-      console.error("❌ [DASHBOARD] Erro ao buscar comissões pendentes:", pendingError)
-    }
-
-    // Calcular estatísticas
-    const currentMonthSales = monthlySales?.length || 0
-    const currentMonthCommission = monthlySales?.reduce((sum, sale) => sum + (sale.commission || 0), 0) || 0
-    const pendingCommission = pendingSales?.reduce((sum, sale) => sum + (sale.commission || 0), 0) || 0
-    const conversionRate = affiliate.total_clicks > 0 ? (affiliate.total_sales / affiliate.total_clicks) * 100 : 0
+    // Taxa de conversão
+    const totalClicks = clickCount || 0
+    const totalInvestments = investments?.length || 0
+    const conversionRate = totalClicks > 0 ? (totalInvestments / totalClicks) * 100 : 0
 
     const stats: AffiliateStats = {
-      totalSales: affiliate.total_sales || 0,
+      totalSales: totalInvestments,
       totalCommission: affiliate.total_commission || 0,
       pendingCommission,
-      totalClicks: affiliate.total_clicks || 0,
+      totalClicks,
       conversionRate,
       currentMonthSales,
       currentMonthCommission,
     }
 
-    console.log("✅ [DASHBOARD] Estatísticas carregadas:", stats)
+    console.log("✅ [DASHBOARD] Estatísticas calculadas:", stats)
     return stats
   } catch (error) {
     console.error("💥 [DASHBOARD] Erro ao buscar estatísticas:", error)
@@ -107,16 +139,18 @@ export async function getAffiliateSales(affiliateId: string, limit = 10): Promis
   try {
     console.log("💰 [DASHBOARD] Buscando vendas do afiliado:", affiliateId)
 
-    const { data: sales, error } = await supabase
-      .from("sales")
+    // Buscar investimentos como "vendas"
+    const { data: investments, error } = await supabase
+      .from("investments")
       .select(`
         id,
         created_at,
-        customer_name,
-        sale_value,
-        commission,
+        amount,
         status,
-        product_name
+        users (
+          name,
+          email
+        )
       `)
       .eq("affiliate_id", affiliateId)
       .order("created_at", { ascending: false })
@@ -127,18 +161,37 @@ export async function getAffiliateSales(affiliateId: string, limit = 10): Promis
       return []
     }
 
-    const formattedSales: AffiliateSale[] =
-      sales?.map((sale) => ({
-        id: sale.id,
-        date: new Date(sale.created_at).toLocaleDateString("pt-BR"),
-        customerName: sale.customer_name || "Cliente",
-        saleValue: sale.sale_value || 0,
-        commission: sale.commission || 0,
-        status: sale.status || "pending",
-        product: sale.product_name || "AGD Token",
-      })) || []
+    console.log("💰 [DASHBOARD] Investimentos encontrados:", investments?.length || 0)
 
-    console.log("✅ [DASHBOARD] Vendas carregadas:", formattedSales.length)
+    // Buscar comissões correspondentes
+    const investmentIds = investments?.map((inv) => inv.id) || []
+    let commissions: any[] = []
+
+    if (investmentIds.length > 0) {
+      const { data: commissionsData } = await supabase
+        .from("commissions")
+        .select("investment_id, amount, status")
+        .in("investment_id", investmentIds)
+
+      commissions = commissionsData || []
+    }
+
+    const formattedSales: AffiliateSale[] =
+      investments?.map((investment) => {
+        const commission = commissions?.find((c) => c.investment_id === investment.id)
+
+        return {
+          id: investment.id,
+          date: new Date(investment.created_at).toLocaleDateString("pt-BR"),
+          customerName: investment.users?.name || "Cliente",
+          saleValue: investment.amount || 0,
+          commission: commission?.amount || investment.amount * 0.05,
+          status: commission?.status || "pending",
+          product: "AGD Token",
+        }
+      }) || []
+
+    console.log("✅ [DASHBOARD] Vendas formatadas:", formattedSales.length)
     return formattedSales
   } catch (error) {
     console.error("💥 [DASHBOARD] Erro ao buscar vendas:", error)
@@ -150,18 +203,20 @@ export async function getAffiliatePayments(affiliateId: string, limit = 10): Pro
   try {
     console.log("💳 [DASHBOARD] Buscando pagamentos do afiliado:", affiliateId)
 
-    const { data: payments, error } = await supabase
-      .from("affiliate_payments")
+    // Buscar comissões pagas como "pagamentos"
+    const { data: commissions, error } = await supabase
+      .from("commissions")
       .select(`
         id,
-        created_at,
         amount,
-        payment_method,
         status,
-        reference
+        paid_at,
+        payment_method,
+        created_at
       `)
       .eq("affiliate_id", affiliateId)
-      .order("created_at", { ascending: false })
+      .eq("status", "paid")
+      .order("paid_at", { ascending: false })
       .limit(limit)
 
     if (error) {
@@ -169,17 +224,19 @@ export async function getAffiliatePayments(affiliateId: string, limit = 10): Pro
       return []
     }
 
+    console.log("💳 [DASHBOARD] Comissões pagas encontradas:", commissions?.length || 0)
+
     const formattedPayments: AffiliatePayment[] =
-      payments?.map((payment) => ({
-        id: payment.id,
-        date: new Date(payment.created_at).toLocaleDateString("pt-BR"),
-        amount: payment.amount || 0,
-        method: payment.payment_method || "PIX",
-        status: payment.status || "pending",
-        reference: payment.reference || payment.id,
+      commissions?.map((commission) => ({
+        id: commission.id,
+        date: new Date(commission.paid_at || commission.created_at).toLocaleDateString("pt-BR"),
+        amount: commission.amount || 0,
+        method: commission.payment_method || "PIX",
+        status: "paid",
+        reference: `COM-${commission.id.slice(0, 8)}`,
       })) || []
 
-    console.log("✅ [DASHBOARD] Pagamentos carregados:", formattedPayments.length)
+    console.log("✅ [DASHBOARD] Pagamentos formatados:", formattedPayments.length)
     return formattedPayments
   } catch (error) {
     console.error("💥 [DASHBOARD] Erro ao buscar pagamentos:", error)
@@ -222,5 +279,54 @@ export async function getAffiliateProfile(userId: string) {
   } catch (error) {
     console.error("💥 [DASHBOARD] Erro ao buscar perfil:", error)
     return null
+  }
+}
+
+// Função para registrar clique do afiliado
+export async function trackAffiliateClick(affiliateCode: string, destination = "ofertas") {
+  try {
+    console.log("🔗 [TRACKING] Registrando clique:", { affiliateCode, destination })
+
+    // Buscar ID do afiliado
+    const { data: affiliate, error: affiliateError } = await supabase
+      .from("affiliates")
+      .select("id")
+      .eq("affiliate_code", affiliateCode)
+      .single()
+
+    if (affiliateError || !affiliate) {
+      console.error("❌ [TRACKING] Afiliado não encontrado:", affiliateCode)
+      return false
+    }
+
+    // Registrar clique na tabela
+    const { error: clickError } = await supabase.from("affiliate_clicks").insert({
+      affiliate_id: affiliate.id,
+      affiliate_code: affiliateCode,
+      utm_source: "affiliate",
+      utm_medium: "referral",
+      utm_campaign: affiliateCode,
+      page_destination: destination,
+    })
+
+    if (clickError) {
+      console.error("❌ [TRACKING] Erro ao registrar clique:", clickError)
+      return false
+    }
+
+    // Incrementar contador de cliques
+    const { error: updateError } = await supabase.rpc("increment_affiliate_clicks", {
+      affiliate_code_param: affiliateCode,
+    })
+
+    if (updateError) {
+      console.error("❌ [TRACKING] Erro ao incrementar cliques:", updateError)
+    }
+
+    console.log("✅ [TRACKING] Clique registrado com sucesso")
+    return true
+  } catch (error) {
+    console.error("💥 [TRACKING] Erro no tracking:", error)
+    return false
   }
 }
