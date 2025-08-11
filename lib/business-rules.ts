@@ -1,249 +1,332 @@
-// Regras de Negócio do Sistema AGD
+// Regras de Negócio do Sistema AGD Token
 
 export interface InvestmentPlan {
   id: string
   name: string
-  minValue: number
-  maxValue: number | null
+  monthlyValue: number
+  minCommitmentMonths: number
   bonusPercent: number
   affiliateBonusPercent: number
   lockPeriod: number // dias
   description: string
   features: string[]
+  trafficAllocation: number // % do valor destinado ao tráfego
+  tokensPerReal: number // quantos tokens por real investido
 }
 
-export interface User {
-  id: string
-  name: string
-  email: string
-  phone: string
-  cpf: string
-  role: "admin" | "viewer" | "buyer" | "affiliate"
-  status: "active" | "pending" | "blocked"
-  createdAt: string
-  lastLogin?: string
-}
-
-export interface Investment {
-  id: string
-  userId: string
-  planId: string
-  amount: number
-  bonus: number
-  affiliateBonus: number
-  affiliateId?: string
-  status: "pending" | "confirmed" | "completed" | "cancelled"
-  purchaseDate: string
-  unlockDate: string
-  withdrawalRequested?: boolean
-  withdrawalDate?: string
-  paymentMethod: string
-  transactionId?: string
-}
-
-export interface AffiliateCommission {
-  id: string
-  affiliateId: string
-  investmentId: string
-  amount: number
-  percentage: number
-  status: "pending" | "paid" | "cancelled"
-  generatedAt: string
-  paidAt?: string
-  paymentMethod?: string
-}
-
-// Planos de Investimento
+// Planos de Investimento Mensais - Tokens + Tráfego Pago
 export const INVESTMENT_PLANS: InvestmentPlan[] = [
   {
     id: "starter",
-    name: "Plano Iniciante",
-    minValue: 50,
-    maxValue: 999,
-    bonusPercent: 5,
-    affiliateBonusPercent: 2,
+    name: "Starter",
+    monthlyValue: 1500,
+    minCommitmentMonths: 4,
+    bonusPercent: 10, // 10% de bônus em tokens
+    affiliateBonusPercent: 10, // 10% de comissão para afiliados
     lockPeriod: 30,
-    description: "Ideal para quem está começando",
-    features: ["Entrada acessível", "Bônus de 5%", "Suporte completo", "Resgate em 30 dias"],
+    description: "Plano inicial com tokens e tráfego pago",
+    features: [
+      "R$ 1.500/mês por 4 meses",
+      "1.650 AGD Tokens/mês (com 10% bônus)",
+      "R$ 1.500/mês em tráfego pago",
+      "~1.000 cliques/mês estimados",
+      "Dashboard de performance",
+      "Suporte completo",
+      "Otimização automática de campanhas",
+    ],
+    trafficAllocation: 1.0, // 100% do valor também para tráfego
+    tokensPerReal: 1, // 1 token por real + bônus
   },
   {
-    id: "intermediate",
-    name: "Plano Intermediário",
-    minValue: 1000,
-    maxValue: 4999,
-    bonusPercent: 15,
-    affiliateBonusPercent: 3,
-    lockPeriod: 60,
-    description: "Melhor custo-benefício",
-    features: ["Bônus de 15%", "Prioridade no suporte", "Relatórios exclusivos", "Resgate em 60 dias"],
+    id: "professional",
+    name: "Professional",
+    monthlyValue: 3000,
+    minCommitmentMonths: 4,
+    bonusPercent: 15, // 15% de bônus em tokens
+    affiliateBonusPercent: 12,
+    lockPeriod: 30,
+    description: "Para quem quer escalar com tokens e tráfego",
+    features: [
+      "R$ 3.000/mês por 4 meses",
+      "3.450 AGD Tokens/mês (com 15% bônus)",
+      "R$ 3.000/mês em tráfego pago",
+      "~2.000 cliques/mês estimados",
+      "Campanhas em múltiplas plataformas",
+      "Otimização avançada",
+      "Suporte prioritário",
+      "Relatórios executivos",
+    ],
+    trafficAllocation: 1.0,
+    tokensPerReal: 1,
   },
   {
-    id: "premium",
-    name: "Plano Premium",
-    minValue: 5000,
-    maxValue: null,
-    bonusPercent: 25,
-    affiliateBonusPercent: 5,
-    lockPeriod: 90,
-    description: "Máximo retorno para grandes investidores",
-    features: ["Bônus de 25%", "Acesso VIP", "Consultoria personalizada", "Resgate em 90 dias"],
+    id: "enterprise",
+    name: "Enterprise",
+    monthlyValue: 5000,
+    minCommitmentMonths: 4,
+    bonusPercent: 20, // 20% de bônus em tokens
+    affiliateBonusPercent: 15,
+    lockPeriod: 30,
+    description: "Máximo volume de tokens e tráfego",
+    features: [
+      "R$ 5.000/mês por 4 meses",
+      "6.000 AGD Tokens/mês (com 20% bônus)",
+      "R$ 5.000/mês em tráfego pago",
+      "~3.333 cliques/mês estimados",
+      "Campanhas premium otimizadas",
+      "Múltiplas plataformas simultâneas",
+      "Suporte VIP 24/7",
+      "Consultoria estratégica semanal",
+      "Gerente de conta dedicado",
+    ],
+    trafficAllocation: 1.0,
+    tokensPerReal: 1,
+  },
+  {
+    id: "elite",
+    name: "Elite",
+    monthlyValue: 10000,
+    minCommitmentMonths: 4,
+    bonusPercent: 25, // 25% de bônus em tokens
+    affiliateBonusPercent: 20,
+    lockPeriod: 30,
+    description: "Para grandes escalas de tokens e tráfego",
+    features: [
+      "R$ 10.000/mês por 4 meses",
+      "12.500 AGD Tokens/mês (com 25% bônus)",
+      "R$ 10.000/mês em tráfego pago",
+      "~6.667 cliques/mês estimados",
+      "Campanhas enterprise premium",
+      "Todas as plataformas disponíveis",
+      "Otimização com IA avançada",
+      "Suporte VIP exclusivo",
+      "Consultoria estratégica diária",
+      "Equipe dedicada exclusiva",
+    ],
+    trafficAllocation: 1.0,
+    tokensPerReal: 1,
   },
 ]
 
-// Regras de Comissão para Afiliados (atualizadas conforme documento)
-export const AFFILIATE_COMMISSION_RULES = {
-  // Comissão direta para o vendedor
-  directCommission: 7, // 7% para o vendedor que realizar a conversão direta
-
-  // Comissão de liderança
-  leadershipCommission: 3, // 3% para o líder que indicou o afiliado
-
-  // Período de atribuição
-  attributionPeriod: 48, // 48 horas para atribuição de conversão
-
-  // Valor mínimo para saque
-  minWithdrawal: 50, // US$ 50 mínimo
-
-  // Moeda de pagamento
-  paymentCurrency: "USDT",
-
-  // Frequência de pagamento
-  paymentFrequency: "weekly", // Pagamentos semanais às sextas-feiras
-
-  // ROAS esperado
-  expectedROAS: 2.8,
+// Configurações de tráfego
+export const TRAFFIC_CONFIG = {
+  costPerClick: 1.5, // R$ 1,50 por clique
+  conversionRate: 0.02, // 2% de conversão
+  averageCommission: 150, // R$ 150 por conversão
 }
 
-// Regras de Resgate
-export const WITHDRAWAL_RULES = {
-  // Período mínimo de lock por plano
-  lockPeriods: {
-    starter: 30,
-    intermediate: 60,
-    premium: 90,
+// Configurações de tokens
+export const TOKEN_CONFIG = {
+  currentPrice: 1.0, // R$ 1,00 por token
+  monthlyGrowth: 0.05, // 5% ao mês
+  lockPeriod: 30, // 30 dias
+}
+
+// Regras de Comissão para Afiliados
+export const BUSINESS_RULES = {
+  COMMISSION: {
+    starter: 0.1, // 10%
+    professional: 0.12, // 12%
+    enterprise: 0.15, // 15%
+    elite: 0.2, // 20%
   },
-
-  // Taxa de resgate antecipado
-  earlyWithdrawalFee: 10, // 10% de penalidade
-
-  // Prazo para processamento
-  processingDays: 5,
-
-  // Valor mínimo para resgate
-  minWithdrawal: 50,
 }
 
 // Funções utilitárias
-export function calculateInvestmentBonus(
-  planId: string,
-  amount: number,
-  hasAffiliate = false,
-): {
-  totalAmount: number
-  bonus: number
-  affiliateBonus: number
-} {
+export function calculateMonthlyCommitment(planId: string): {
+  monthlyValue: number
+  totalValue: number
+  totalTokens: number
+  monthlyTokens: number
+  monthlyTrafficBudget: number
+  totalTrafficBudget: number
+} | null {
   const plan = INVESTMENT_PLANS.find((p) => p.id === planId)
-  if (!plan) throw new Error("Plano não encontrado")
+  if (!plan) return null
 
-  const bonus = (amount * plan.bonusPercent) / 100
-  const affiliateBonus = hasAffiliate ? (amount * plan.affiliateBonusPercent) / 100 : 0
+  const totalValue = plan.monthlyValue * plan.minCommitmentMonths
+  const monthlyTokens = plan.monthlyValue * plan.tokensPerReal * (1 + plan.bonusPercent / 100)
+  const totalTokens = monthlyTokens * plan.minCommitmentMonths
+  const monthlyTrafficBudget = plan.monthlyValue * plan.trafficAllocation
+  const totalTrafficBudget = monthlyTrafficBudget * plan.minCommitmentMonths
 
   return {
-    totalAmount: amount + bonus + affiliateBonus,
-    bonus,
-    affiliateBonus,
+    monthlyValue: plan.monthlyValue,
+    totalValue,
+    totalTokens,
+    monthlyTokens,
+    monthlyTrafficBudget,
+    totalTrafficBudget,
   }
 }
 
-// Atualizar função de cálculo de comissão
-export function calculateAffiliateCommission(
-  amount: number,
-  isDirectSale = true,
-  hasLeader = false,
-): {
-  directCommission: number
-  leadershipCommission: number
-  totalCommission: number
-} {
-  const directCommission = isDirectSale ? (amount * AFFILIATE_COMMISSION_RULES.directCommission) / 100 : 0
-  const leadershipCommission = hasLeader ? (amount * AFFILIATE_COMMISSION_RULES.leadershipCommission) / 100 : 0
+// Calcular resultados esperados de tráfego
+export function calculateExpectedTrafficResults(monthlyBudget: number) {
+  const estimatedClicks = Math.floor(monthlyBudget / TRAFFIC_CONFIG.costPerClick)
+  const estimatedImpressions = estimatedClicks * 40 // 1 clique para cada 40 impressões
+  const estimatedConversions = Math.floor(estimatedClicks * TRAFFIC_CONFIG.conversionRate)
+  const estimatedCommissions = estimatedConversions * TRAFFIC_CONFIG.averageCommission
 
   return {
-    directCommission,
-    leadershipCommission,
-    totalCommission: directCommission + leadershipCommission,
+    estimatedClicks,
+    estimatedImpressions,
+    estimatedConversions,
+    estimatedCommissions,
   }
 }
 
-export function canWithdraw(investment: Investment): boolean {
-  const plan = INVESTMENT_PLANS.find((p) => p.id === investment.planId)
-  if (!plan) return false
+// Calcular valor e projeção dos tokens
+export function calculateTokenValue(totalTokens: number) {
+  const currentValue = totalTokens * TOKEN_CONFIG.currentPrice
 
-  const unlockDate = new Date(investment.unlockDate)
+  // Projeção de 12 meses com crescimento mensal
+  const projectedValue12Months = totalTokens * TOKEN_CONFIG.currentPrice * Math.pow(1 + TOKEN_CONFIG.monthlyGrowth, 12)
+
+  // Projeção de 24 meses
+  const projectedValue24Months = totalTokens * TOKEN_CONFIG.currentPrice * Math.pow(1 + TOKEN_CONFIG.monthlyGrowth, 24)
+
+  return {
+    currentValue: Math.round(currentValue),
+    projectedValue12Months: Math.round(projectedValue12Months),
+    projectedValue24Months: Math.round(projectedValue24Months),
+    monthlyGrowth: TOKEN_CONFIG.monthlyGrowth,
+    lockPeriod: TOKEN_CONFIG.lockPeriod,
+  }
+}
+
+// Calcular ROI combinado (tokens + tráfego)
+export function calculateCombinedROI(planType: string, months = 12) {
+  const plan = INVESTMENT_PLANS.find((p) => p.id === planType)
+  if (!plan) return null
+
+  // Investimento total em 4 meses
+  const totalInvestment = plan.monthlyValue * 4
+
+  // Valor dos tokens após o período
+  const planDetails = calculateMonthlyCommitment(planType)
+  if (!planDetails) return null
+
+  const tokenValue = calculateTokenValue(planDetails.totalTokens)
+
+  // Comissões estimadas do tráfego em 4 meses
+  const trafficResults = calculateExpectedTrafficResults(plan.monthlyValue)
+  const totalCommissions = trafficResults.estimatedCommissions * 4
+
+  // ROI total
+  const totalReturn = tokenValue.projectedValue12Months + totalCommissions
+  const roi = ((totalReturn - totalInvestment) / totalInvestment) * 100
+
+  return {
+    totalInvestment,
+    tokenValue: tokenValue.projectedValue12Months,
+    trafficCommissions: totalCommissions,
+    totalReturn,
+    roi: Math.round(roi),
+  }
+}
+
+export function getCommissionRate(tier: string): number {
+  switch (tier.toLowerCase()) {
+    case "elite":
+      return BUSINESS_RULES.COMMISSION.elite
+    case "enterprise":
+      return BUSINESS_RULES.COMMISSION.enterprise
+    case "professional":
+      return BUSINESS_RULES.COMMISSION.professional
+    case "starter":
+      return BUSINESS_RULES.COMMISSION.starter
+    default:
+      return BUSINESS_RULES.COMMISSION.starter
+  }
+}
+
+// Gerar código de afiliado único
+export function generateAffiliateCode(name: string): string {
+  const cleanName = name
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .slice(0, 3)
+  const timestamp = Date.now().toString().slice(-4)
+  const randomSuffix = Math.random().toString(36).substring(2, 4).toUpperCase()
+  return `${cleanName}${timestamp}${randomSuffix}`
+}
+
+// Calcular métricas de dashboard
+export function calculateDashboardMetrics(commitments: any[], clicks: any[], sales: any[]) {
+  const totalInvested = commitments.reduce((sum, c) => sum + c.monthly_commitment * c.commitment_months, 0)
+  const totalTokens = commitments.reduce((sum, c) => sum + c.monthly_tokens * c.commitment_months, 0)
+  const totalClicks = clicks.length
+  const totalSales = sales.length
+  const totalCommissions = sales.reduce((sum, s) => sum + s.commission_amount, 0)
+
+  const conversionRate = totalClicks > 0 ? (totalSales / totalClicks) * 100 : 0
+  const averageCommission = totalSales > 0 ? totalCommissions / totalSales : 0
+
+  return {
+    totalInvested,
+    totalTokens,
+    totalClicks,
+    totalSales,
+    totalCommissions,
+    conversionRate: Math.round(conversionRate * 100) / 100,
+    averageCommission: Math.round(averageCommission),
+    tokenValue: calculateTokenValue(totalTokens),
+  }
+}
+
+// Gerar dados para planilhas
+export function generateSheetsData(affiliates: any[], sales: any[], clicks: any[]) {
+  return affiliates.map((affiliate) => ({
+    id: affiliate.id,
+    name: affiliate.name,
+    email: affiliate.email,
+    code: affiliate.affiliate_code,
+    totalSales: sales.filter((s) => s.affiliate_id === affiliate.id).length,
+    totalClicks: clicks.filter((c) => c.affiliate_id === affiliate.id).length,
+    totalCommissions: sales
+      .filter((s) => s.affiliate_id === affiliate.id)
+      .reduce((sum, s) => sum + s.commission_amount, 0),
+    conversionRate:
+      clicks.filter((c) => c.affiliate_id === affiliate.id).length > 0
+        ? (sales.filter((s) => s.affiliate_id === affiliate.id).length /
+            clicks.filter((c) => c.affiliate_id === affiliate.id).length) *
+          100
+        : 0,
+  }))
+}
+
+export function calculateWithdrawalAmount(tokens: number, lockDate: Date): number {
   const now = new Date()
+  const lockPeriodEnd = new Date(lockDate.getTime() + TOKEN_CONFIG.lockPeriod * 24 * 60 * 60 * 1000)
 
-  return now >= unlockDate && investment.status === "confirmed"
-}
-
-export function calculateWithdrawalAmount(investment: Investment, isEarly = false): number {
-  let amount = investment.amount + investment.bonus + investment.affiliateBonus
-
-  if (isEarly) {
-    const fee = (amount * WITHDRAWAL_RULES.earlyWithdrawalFee) / 100
-    amount -= fee
+  if (now < lockPeriodEnd) {
+    return 0 // Tokens ainda estão em lock
   }
 
-  return Math.max(amount, 0)
+  return tokens * TOKEN_CONFIG.currentPrice
 }
 
-// Função para gerar relatório para Google Sheets
-export function generateSheetsData(investments: Investment[], commissions: AffiliateCommission[]) {
-  return {
-    investments: investments.map((inv) => ({
-      id: inv.id,
-      userId: inv.userId,
-      planId: inv.planId,
-      amount: inv.amount,
-      bonus: inv.bonus,
-      affiliateBonus: inv.affiliateBonus,
-      totalAmount: inv.amount + inv.bonus + inv.affiliateBonus,
-      status: inv.status,
-      purchaseDate: inv.purchaseDate,
-      unlockDate: inv.unlockDate,
-      canWithdraw: canWithdraw(inv),
-    })),
-    commissions: commissions.map((comm) => ({
-      id: comm.id,
-      affiliateId: comm.affiliateId,
-      investmentId: comm.investmentId,
-      amount: comm.amount,
-      percentage: comm.percentage,
-      status: comm.status,
-      generatedAt: comm.generatedAt,
-      paidAt: comm.paidAt,
-    })),
-  }
+export function canWithdraw(lockDate: Date): boolean {
+  const now = new Date()
+  const lockPeriodEnd = new Date(lockDate.getTime() + TOKEN_CONFIG.lockPeriod * 24 * 60 * 60 * 1000)
+  return now >= lockPeriodEnd
 }
 
-// Regras de conduta para afiliados
-export const AFFILIATE_CONDUCT_RULES = {
-  prohibited: [
-    "Prometer retorno financeiro garantido",
-    "Utilizar linguagem que viole regulamentações da CVM",
-    "Spam ou práticas enganosas",
-    "Fake news ou informações falsas",
-    "Materiais não aprovados",
-  ],
-  required: [
-    "Utilizar apenas materiais aprovados",
-    "Respeitar branding do AGD",
-    "Seguir diretrizes de comunicação",
-    "Manter práticas éticas",
-  ],
-  penalties: [
-    "Advertência por primeira violação",
-    "Suspensão temporária por reincidência",
-    "Expulsão e suspensão de pagamentos por violações graves",
-  ],
+export function canBecomeAffiliate(userInvestment: number): boolean {
+  // Usuário pode se tornar afiliado se tiver investimento mínimo do plano starter
+  return userInvestment >= INVESTMENT_PLANS[0].monthlyValue
+}
+
+export function getTierByInvestment(monthlyInvestment: number): string {
+  if (monthlyInvestment >= 10000) return "elite"
+  if (monthlyInvestment >= 5000) return "enterprise"
+  if (monthlyInvestment >= 3000) return "professional"
+  return "starter"
+}
+
+export function calculateInvestmentBonus(baseAmount: number, planId: string): number {
+  const plan = INVESTMENT_PLANS.find((p) => p.id === planId)
+  if (!plan) return baseAmount
+
+  return baseAmount * (1 + plan.bonusPercent / 100)
 }

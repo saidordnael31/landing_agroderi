@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
 import { generateAffiliateCode } from "@/lib/affiliate-utils"
+import { canBecomeAffiliate, getTierByInvestment, getCommissionRate } from "@/lib/business-rules"
 
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -30,19 +31,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar email existente
-    const { data: existingUser } = await supabaseAdmin
+    // Verificar se usuário existe
+    const { data: existingUser, error: userCheckError } = await supabaseAdmin
       .from("users")
       .select("id")
       .eq("email", email.toLowerCase())
       .single()
 
-    if (existingUser) {
+    if (userCheckError && userCheckError.code !== "PGRST116") {
+      console.error("❌ [REGISTER] Erro ao verificar usuário:", userCheckError)
       return NextResponse.json(
         {
           success: false,
-          error: "Email já cadastrado",
-          code: "EMAIL_EXISTS",
+          error: "Erro ao verificar usuário",
+          code: "USER_CHECK_ERROR",
+        },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
+    }
+
+    if (!existingUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Usuário não encontrado. Você precisa fazer um investimento primeiro.",
+          code: "USER_NOT_FOUND",
+        },
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
+    }
+
+    // Verificar se já é afiliado
+    const { data: existingAffiliate } = await supabaseAdmin
+      .from("affiliates")
+      .select("id")
+      .eq("user_id", existingUser.id)
+      .single()
+
+    if (existingAffiliate) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Usuário já é afiliado",
+          code: "ALREADY_AFFILIATE",
         },
         {
           status: 409,
@@ -51,33 +88,71 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verificar investimentos para elegibilidade
+    const { data: investments, error: investmentError } = await supabaseAdmin
+      .from("investments")
+      .select("id, amount, status, plan_id")
+      .eq("user_id", existingUser.id)
+
+    if (investmentError) {
+      console.error("❌ [REGISTER] Erro ao verificar investimentos:", investmentError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Erro ao verificar investimentos",
+          code: "INVESTMENT_ERROR",
+        },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
+    }
+
+    // Verificar elegibilidade
+    if (!canBecomeAffiliate(investments || [])) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Você precisa ter pelo menos um investimento confirmado para se tornar afiliado",
+          code: "NOT_ELIGIBLE",
+        },
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
+    }
+
+    // Calcular tier baseado no maior investimento
+    const maxInvestment = Math.max(...(investments?.map((inv) => inv.amount) || [0]))
+    const tier = getTierByInvestment(maxInvestment)
+    const commissionRate = getCommissionRate(tier)
+
     // Hash da senha
     const passwordHash = await bcrypt.hash(senha, 12)
 
     // Gerar código do afiliado
     const affiliateCode = generateAffiliateCode(nome)
 
-    // Criar usuário
-    const { data: newUser, error: userError } = await supabaseAdmin
+    // Atualizar usuário com senha e role
+    const { error: updateUserError } = await supabaseAdmin
       .from("users")
-      .insert({
+      .update({
         name: nome,
-        email: email.toLowerCase(),
         password_hash: passwordHash,
         role: "affiliate",
-        status: "active",
-        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .select("id")
-      .single()
+      .eq("id", existingUser.id)
 
-    if (userError || !newUser) {
-      console.error("❌ [REGISTER] Erro ao criar usuário:", userError)
+    if (updateUserError) {
+      console.error("❌ [REGISTER] Erro ao atualizar usuário:", updateUserError)
       return NextResponse.json(
         {
           success: false,
-          error: "Erro ao criar usuário",
-          code: "USER_ERROR",
+          error: "Erro ao atualizar usuário",
+          code: "USER_UPDATE_ERROR",
         },
         {
           status: 500,
@@ -90,17 +165,18 @@ export async function POST(request: NextRequest) {
     const { data: newAffiliate, error: affiliateError } = await supabaseAdmin
       .from("affiliates")
       .insert({
-        user_id: newUser.id,
+        user_id: existingUser.id,
         affiliate_code: affiliateCode,
         phone: telefone,
         cpf: cpf || null,
         experience: experiencia || null,
         channels: canais || [],
         motivation: motivacao || null,
-        tier: "bronze",
+        tier: tier,
         status: "active",
         total_sales: 0,
         total_commission: 0,
+        commission_rate: commissionRate,
         created_at: new Date().toISOString(),
       })
       .select("id, affiliate_code")
@@ -108,9 +184,6 @@ export async function POST(request: NextRequest) {
 
     if (affiliateError || !newAffiliate) {
       console.error("❌ [REGISTER] Erro ao criar afiliado:", affiliateError)
-
-      // Rollback - deletar usuário
-      await supabaseAdmin.from("users").delete().eq("id", newUser.id)
 
       return NextResponse.json(
         {
@@ -133,7 +206,7 @@ export async function POST(request: NextRequest) {
         message: "Cadastro realizado com sucesso!",
         data: {
           user: {
-            id: newUser.id,
+            id: existingUser.id,
             name: nome,
             email: email.toLowerCase(),
             role: "affiliate",
@@ -141,7 +214,8 @@ export async function POST(request: NextRequest) {
           affiliate: {
             id: newAffiliate.id,
             affiliate_code: newAffiliate.affiliate_code,
-            tier: "bronze",
+            tier: tier,
+            commission_rate: commissionRate,
             status: "active",
           },
         },
