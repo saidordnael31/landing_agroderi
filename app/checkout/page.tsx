@@ -51,26 +51,23 @@ export default function CheckoutPage() {
 
     setLoading(true)
     try {
-      const response = await fetch("https://api.agroderivative.tech/api/generate-fiat-deposit-qrcode/", {
+      const response = await fetch("/api/generate-pix", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
-          "X-API-Key": "55211ed1-2782-4ae9-b0d1-7569adccd86d",
         },
         body: JSON.stringify({
-          cpf: "02302682262", // Remove formatting
-          value:1500, // Ensure value is sent as string
+          cpf: userData.cpf.replace(/\D/g, ""), // Remove formatting
+          value: planData.monthlyCommitment, // Use actual plan value
         }),
       })
 
       console.log("Response status:", response.status)
-      console.log("Response headers:", response.headers)
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error("API Error Response:", errorText)
-        throw new Error(`Erro ao gerar código PIX: ${response.status} - ${errorText}`)
+        const errorData = await response.json()
+        console.error("API Error Response:", errorData)
+        throw new Error(`Erro ao gerar código PIX: ${errorData.error || response.statusText}`)
       }
 
       const data = await response.json()
