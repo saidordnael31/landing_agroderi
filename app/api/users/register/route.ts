@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { generateAffiliateCode } from "@/lib/affiliate-utils"
+import { generateAffiliateCode } from "@/lib/server-utils"
 import { INVESTMENT_PLANS, calculateMonthlyCommitment, getCommissionRate } from "@/lib/business-rules"
 
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -80,7 +80,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Gerar código do afiliado
     const newAffiliateCode = generateAffiliateCode()
 
     // Buscar afiliado que indicou (se houver)
