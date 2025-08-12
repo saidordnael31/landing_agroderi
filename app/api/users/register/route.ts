@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import bcrypt from "bcryptjs"
 import { generateAffiliateCode } from "@/lib/affiliate-utils"
 import { INVESTMENT_PLANS, calculateMonthlyCommitment, getCommissionRate } from "@/lib/business-rules"
 
@@ -39,13 +38,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: existingAffiliate, error: affiliateCheckError } = await supabaseAdmin
-      .from("affiliates")
+    const { data: existingUser, error: userCheckError } = await supabaseAdmin
+      .from("users")
       .select("id")
       .eq("email", email.toLowerCase())
       .single()
 
-    if (existingAffiliate) {
+    if (existingUser) {
       return NextResponse.json(
         {
           success: false,
@@ -81,9 +80,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Hash da senha
-    const passwordHash = await bcrypt.hash(senha, 12)
-
     // Gerar código do afiliado
     const newAffiliateCode = generateAffiliateCode()
 
@@ -116,16 +112,41 @@ export async function POST(request: NextRequest) {
 
     const commissionRate = getCommissionRate(tier)
 
-    const { data: newAffiliate, error: affiliateError } = await supabaseAdmin
-      .from("affiliates")
+    const { data: newUser, error: userError } = await supabaseAdmin
+      .from("users")
       .insert({
-        // Campos básicos do afiliado
-        affiliate_code: newAffiliateCode,
         email: email.toLowerCase(),
         name: nome,
         phone: telefone,
         cpf: cpf || null,
-        password_hash: passwordHash,
+        role: "affiliate",
+        status: "active",
+      })
+      .select("id, email, name")
+      .single()
+
+    if (userError || !newUser) {
+      console.error("❌ [USER REGISTER] Erro ao criar usuário:", userError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Erro ao criar usuário",
+          code: "USER_CREATION_ERROR",
+          details: userError?.message || "Erro desconhecido",
+        },
+        { status: 500 },
+      )
+    }
+
+    const { data: newAffiliate, error: affiliateError } = await supabaseAdmin
+      .from("affiliates")
+      .insert({
+        // Foreign key to users table
+        user_id: newUser.id,
+        // Campos básicos do afiliado
+        affiliate_code: newAffiliateCode,
+        phone: telefone,
+        cpf: cpf || null,
         experience: experiencia || null,
         channels: canais || [],
         motivation: motivacao || null,
@@ -144,10 +165,8 @@ export async function POST(request: NextRequest) {
         registration_type: registrationType,
         marketing_experience: experiencia || null,
         commitment_status: "pending",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
-      .select("id, affiliate_code, selected_plan, monthly_commitment, email, name")
+      .select("id, affiliate_code, selected_plan, monthly_commitment")
       .single()
 
     if (affiliateError || !newAffiliate) {
@@ -164,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     await supabaseAdmin.from("event_logs").insert({
-      user_id: newAffiliate.id,
+      user_id: newUser.id,
       event_name: "user_registered",
       event_data: {
         registration_type: registrationType,
@@ -184,9 +203,9 @@ export async function POST(request: NextRequest) {
         message: "Cadastro realizado com sucesso!",
         data: {
           user: {
-            id: newAffiliate.id,
-            name: newAffiliate.name,
-            email: newAffiliate.email,
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email,
             role: "affiliate",
           },
           affiliate: {
