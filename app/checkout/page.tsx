@@ -74,8 +74,8 @@ export default function CheckoutPage() {
       console.log("PIX Code Response:", data)
 
       setQrCodeData({
-        qrCode: data.qrCode || data.qr_code,
-        pixCode: data.qrCode || data.qr_code,
+        qrCodeImage: data.qrCode, // Base64 image data for QR code
+        pixCode: data.paymentString, // PIX code string for copying
         success: data.success,
       })
 
@@ -106,8 +106,6 @@ export default function CheckoutPage() {
 
       const headers = {
         Accept: "application/json",
-        "X-API-Key": "55211ed1-2782-4ae9-b0d1-7569adccd86d",
-        "User-Agent": "AgroDeri-Frontend/1.0",
       }
 
       const response = await fetch(externalApiUrl, {
@@ -315,9 +313,9 @@ export default function CheckoutPage() {
                     <>
                       <div className="text-center">
                         <div className="bg-white p-4 rounded-lg border-2 border-dashed border-green-300 inline-block">
-                          {qrCodeData.qrCode ? (
+                          {qrCodeData.qrCodeImage ? (
                             <img
-                              src={qrCodeData.qrCode || "/placeholder.svg"}
+                              src={`data:image/png;base64,${qrCodeData.qrCodeImage}`}
                               alt="QR Code PIX"
                               className="w-48 h-48 mx-auto"
                             />
@@ -339,7 +337,7 @@ export default function CheckoutPage() {
                               type="text"
                               value={qrCodeData.pixCode}
                               readOnly
-                              className="flex-1 px-3 py-2 border border-zinc-300 rounded-l-md bg-zinc-50 text-sm"
+                              className="flex-1 px-3 py-2 border border-zinc-300 rounded-l-md bg-zinc-50 text-sm font-mono text-xs"
                             />
                             <Button
                               onClick={copyPixCode}
