@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Erro interno do servidor",
+        error: error.message,
         code: "INTERNAL_ERROR",
         details: error instanceof Error ? error.message : "Erro desconhecido",
       },
