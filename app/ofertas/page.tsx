@@ -6,7 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Play, Shield, TrendingUp, Users, CheckCircle, Star, Clock, DollarSign, Zap, Target, Gift, ArrowRight, Eye, Calendar, BarChart3, MousePointer, AlertTriangle, Megaphone, Coins, Plus } from 'lucide-react'
+import {
+  Play,
+  Shield,
+  TrendingUp,
+  CheckCircle,
+  Star,
+  Clock,
+  Zap,
+  ArrowRight,
+  Eye,
+  Calendar,
+  BarChart3,
+  MousePointer,
+  Megaphone,
+  Coins,
+  Plus,
+} from "lucide-react"
 import { calculateExpectedTrafficResults, calculateMonthlyCommitment, calculateTokenValue } from "@/lib/business-rules"
 
 // Dados dos vídeos reais do Vimeo
@@ -48,6 +64,8 @@ const videos = [
     isMain: false,
   },
 ]
+
+const TOKEN_PRICE = 0.0165 // R$ 0.0165 per token
 
 export default function OfertasPage() {
   const searchParams = useSearchParams()
@@ -124,109 +142,117 @@ export default function OfertasPage() {
       name: "Starter",
       monthlyPrice: 1500,
       totalPrice: 6000,
-      monthlyTokens: 1650, // 1500 + 10% bônus
-      totalTokens: 6600,
+      baseTokens: Math.floor(1500 / TOKEN_PRICE), // ~90,909 tokens
+      bonusPercentage: 10,
+      monthlyTokens: Math.floor((1500 / TOKEN_PRICE) * 1.1), // ~100,000 tokens with 10% bonus
+      totalTokens: Math.floor((1500 / TOKEN_PRICE) * 1.1 * 4), // ~400,000 tokens total
       trafficBudget: 1500,
       totalTrafficBudget: 6000,
       bonus: "10% bônus",
       commission: "10%",
       features: [
         "R$ 1.500/mês por 4 meses",
-        "1.650 AGD Tokens/mês (com 10% bônus)",
+        `~${Math.floor((1500 / TOKEN_PRICE) * 1.1).toLocaleString()} AGD Tokens/mês (com 10% bônus)`,
         "R$ 1.500/mês em tráfego pago",
         "~1.000 cliques/mês estimados",
         "~20 conversões/mês estimadas",
         "Dashboard completo",
-        "Suporte técnico"
+        "Suporte técnico",
       ],
       popular: false,
       commitment: "4 meses mínimo",
       expectedResults: calculateExpectedTrafficResults(1500),
       commitmentDetails: calculateMonthlyCommitment("starter"),
-      tokenProjection: calculateTokenValue(6600),
+      tokenProjection: calculateTokenValue(Math.floor((1500 / TOKEN_PRICE) * 1.1 * 4)),
     },
     {
       id: "professional",
       name: "Professional",
       monthlyPrice: 3000,
       totalPrice: 12000,
-      monthlyTokens: 3450, // 3000 + 15% bônus
-      totalTokens: 13800,
+      baseTokens: Math.floor(3000 / TOKEN_PRICE), // ~181,818 tokens
+      bonusPercentage: 15,
+      monthlyTokens: Math.floor((3000 / TOKEN_PRICE) * 1.15), // ~209,091 tokens with 15% bonus
+      totalTokens: Math.floor((3000 / TOKEN_PRICE) * 1.15 * 4), // ~836,364 tokens total
       trafficBudget: 3000,
       totalTrafficBudget: 12000,
       bonus: "15% bônus",
       commission: "12%",
       features: [
         "R$ 3.000/mês por 4 meses",
-        "3.450 AGD Tokens/mês (com 15% bônus)",
+        `~${Math.floor((3000 / TOKEN_PRICE) * 1.15).toLocaleString()} AGD Tokens/mês (com 15% bônus)`,
         "R$ 3.000/mês em tráfego pago",
         "~2.000 cliques/mês estimados",
         "~40 conversões/mês estimadas",
         "Campanhas otimizadas",
         "Suporte prioritário",
-        "Relatórios avançados"
+        "Relatórios avançados",
       ],
       popular: true,
       commitment: "4 meses mínimo",
       expectedResults: calculateExpectedTrafficResults(3000),
       commitmentDetails: calculateMonthlyCommitment("professional"),
-      tokenProjection: calculateTokenValue(13800),
+      tokenProjection: calculateTokenValue(Math.floor((3000 / TOKEN_PRICE) * 1.15 * 4)),
     },
     {
       id: "enterprise",
       name: "Enterprise",
       monthlyPrice: 5000,
       totalPrice: 20000,
-      monthlyTokens: 6000, // 5000 + 20% bônus
-      totalTokens: 24000,
+      baseTokens: Math.floor(5000 / TOKEN_PRICE), // ~303,030 tokens
+      bonusPercentage: 20,
+      monthlyTokens: Math.floor((5000 / TOKEN_PRICE) * 1.2), // ~363,636 tokens with 20% bonus
+      totalTokens: Math.floor((5000 / TOKEN_PRICE) * 1.2 * 4), // ~1,454,544 tokens total
       trafficBudget: 5000,
       totalTrafficBudget: 20000,
       bonus: "20% bônus",
       commission: "15%",
       features: [
         "R$ 5.000/mês por 4 meses",
-        "6.000 AGD Tokens/mês (com 20% bônus)",
+        `~${Math.floor((5000 / TOKEN_PRICE) * 1.2).toLocaleString()} AGD Tokens/mês (com 20% bônus)`,
         "R$ 5.000/mês em tráfego pago",
         "~3.333 cliques/mês estimados",
         "~67 conversões/mês estimadas",
         "Campanhas premium",
         "Suporte VIP 24/7",
         "Consultoria estratégica",
-        "Gerente dedicado"
+        "Gerente dedicado",
       ],
       popular: false,
       commitment: "4 meses mínimo",
       expectedResults: calculateExpectedTrafficResults(5000),
       commitmentDetails: calculateMonthlyCommitment("enterprise"),
-      tokenProjection: calculateTokenValue(24000),
+      tokenProjection: calculateTokenValue(Math.floor((5000 / TOKEN_PRICE) * 1.2 * 4)),
     },
     {
       id: "elite",
       name: "Elite",
       monthlyPrice: 10000,
       totalPrice: 40000,
-      monthlyTokens: 12500, // 10000 + 25% bônus
-      totalTokens: 50000,
+      baseTokens: Math.floor(10000 / TOKEN_PRICE), // ~606,061 tokens
+      bonusPercentage: 25,
+      monthlyTokens: Math.floor((10000 / TOKEN_PRICE) * 1.25), // ~757,576 tokens with 25% bonus
+      totalTokens: Math.floor((10000 / TOKEN_PRICE) * 1.25 * 4), // ~3,030,304 tokens total
       trafficBudget: 10000,
       totalTrafficBudget: 40000,
       bonus: "25% bônus",
       commission: "20%",
       features: [
         "R$ 10.000/mês por 4 meses",
-        "12.500 AGD Tokens/mês (com 25% bônus)",
+        `~${Math.floor((10000 / TOKEN_PRICE) * 1.25).toLocaleString()} AGD Tokens/mês (com 25% bônus)`,
         "R$ 10.000/mês em tráfego pago",
         "~6.667 cliques/mês estimados",
         "~133 conversões/mês estimadas",
         "Campanhas enterprise",
         "Otimização com IA",
         "Equipe dedicada exclusiva",
-        "Consultoria diária"
+        "Consultoria diária",
       ],
       popular: false,
       commitment: "4 meses mínimo",
       expectedResults: calculateExpectedTrafficResults(10000),
       commitmentDetails: calculateMonthlyCommitment("elite"),
-      tokenProjection: calculateTokenValue(50000),
+      tokenProjection: calculateTokenValue(Math.floor((10000 / TOKEN_PRICE) * 1.25 * 4)),
     },
   ]
 
@@ -257,8 +283,8 @@ export default function OfertasPage() {
             <span className="text-green-600 block">+ Tráfego Pago</span>
           </h1>
           <p className="text-xl text-zinc-600 mb-8 max-w-3xl mx-auto">
-            Invista mensalmente e receba tokens AGD para seu portfólio E tráfego pago direcionado para seu link de afiliado.
-            Duplo benefício: acumule tokens + gere comissões!
+            Invista mensalmente e receba tokens AGD para seu portfólio E tráfego pago direcionado para seu link de
+            afiliado. Duplo benefício: acumule tokens + gere comissões!
           </p>
           <div className="flex flex-wrap justify-center gap-4 mb-8">
             <Badge className="bg-green-100 text-green-800 px-4 py-2">
@@ -289,9 +315,7 @@ export default function OfertasPage() {
         {/* Video Section */}
         <section className="mb-16">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-zinc-800 mb-4">
-              Entenda o sistema de duplo benefício
-            </h2>
+            <h2 className="text-3xl font-bold text-zinc-800 mb-4">Entenda o sistema de duplo benefício</h2>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-8">
@@ -366,9 +390,17 @@ export default function OfertasPage() {
         <section className="mb-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-zinc-800 mb-4">Escolha Seu Plano de Duplo Benefício</h2>
-            <p className="text-xl text-zinc-600">
-              Receba tokens AGD + tráfego pago para maximizar seus ganhos
-            </p>
+            <p className="text-xl text-zinc-600 mb-4">Receba tokens AGD + tráfego pago para maximizar seus ganhos</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-2xl mx-auto">
+              <div className="flex items-center justify-center mb-2">
+                <Coins className="w-5 h-5 text-green-600 mr-2" />
+                <span className="text-lg font-semibold text-green-800">Preço do Token AGD</span>
+              </div>
+              <div className="text-2xl font-bold text-green-600 mb-2">R$ {TOKEN_PRICE.toFixed(4)} por token</div>
+              <p className="text-sm text-green-700">
+                Seus tokens são calculados pelo valor investido ÷ R$ {TOKEN_PRICE.toFixed(4)} + bônus do plano
+              </p>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -391,17 +423,19 @@ export default function OfertasPage() {
                 <CardHeader className="text-center pb-4">
                   <CardTitle className="text-2xl font-bold text-zinc-800">{pkg.name}</CardTitle>
                   <div className="mt-4">
-                    <div className="text-2xl font-bold text-green-600">
-                      R$ {pkg.monthlyPrice.toLocaleString()}/mês
-                    </div>
-                    <div className="text-sm text-zinc-500">
-                      Total: R$ {pkg.totalPrice.toLocaleString()}
-                    </div>
+                    <div className="text-2xl font-bold text-green-600">R$ {pkg.monthlyPrice.toLocaleString()}/mês</div>
+                    <div className="text-sm text-zinc-500">Total: R$ {pkg.totalPrice.toLocaleString()}</div>
                   </div>
                   <div className="flex flex-col gap-1 mt-2">
-                    <Badge variant="outline" className="border-green-600 text-green-600">
-                      {pkg.monthlyTokens.toLocaleString()} Tokens/mês
-                    </Badge>
+                    <div className="bg-green-50 p-2 rounded-lg border border-green-200">
+                      <div className="text-xs text-green-600 font-medium mb-1">Tokens por mês:</div>
+                      <div className="text-sm font-bold text-green-800">
+                        {pkg.baseTokens.toLocaleString()} + {pkg.bonusPercentage}% bônus
+                      </div>
+                      <div className="text-lg font-bold text-green-600">
+                        = {pkg.monthlyTokens.toLocaleString()} tokens
+                      </div>
+                    </div>
                     <Badge variant="outline" className="border-blue-600 text-blue-600">
                       R$ {pkg.trafficBudget.toLocaleString()}/mês tráfego
                     </Badge>
@@ -420,6 +454,9 @@ export default function OfertasPage() {
                       <div className="text-xs text-green-700 text-center space-y-1">
                         <div>{pkg.totalTokens.toLocaleString()} total</div>
                         <div>{pkg.bonus}</div>
+                        <div className="text-xs text-green-600 font-medium">
+                          R$ {(pkg.totalTokens * TOKEN_PRICE).toLocaleString()} valor
+                        </div>
                       </div>
                     </div>
 
@@ -471,9 +508,7 @@ export default function OfertasPage() {
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
 
-                  <div className="text-xs text-center text-zinc-500">
-                    Tokens + Tráfego • Cadastro gratuito
-                  </div>
+                  <div className="text-xs text-center text-zinc-500">Tokens + Tráfego • Cadastro gratuito</div>
                 </CardContent>
               </Card>
             ))}
@@ -515,12 +550,12 @@ export default function OfertasPage() {
             ].map((item, index) => (
               <Card key={index} className="text-center hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
-                  <div className={`w-16 h-16 mx-auto mb-4 ${item.bgColor} rounded-full flex items-center justify-center`}>
+                  <div
+                    className={`w-16 h-16 mx-auto mb-4 ${item.bgColor} rounded-full flex items-center justify-center`}
+                  >
                     <item.icon className={`w-8 h-8 ${item.color}`} />
                   </div>
-                  <div className="text-2xl font-bold text-zinc-800 mb-2">
-                    Passo {item.step}
-                  </div>
+                  <div className="text-2xl font-bold text-zinc-800 mb-2">Passo {item.step}</div>
                   <h3 className="text-lg font-semibold text-zinc-800 mb-2">{item.title}</h3>
                   <p className="text-zinc-600">{item.description}</p>
                 </CardContent>
